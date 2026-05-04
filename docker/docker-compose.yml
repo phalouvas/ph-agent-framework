@@ -1,3 +1,4 @@
+name: ai
 services:
   ph-agent-framework:
     image: phalouvas/ph-agent-framework:latest
