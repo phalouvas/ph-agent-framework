@@ -1,17 +1,41 @@
 services:
   ph-agent-framework:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - ../config:/app/config:ro
-      - ph_data:/app/data
-    environment:
-      - INITIAL_API_KEYS=${INITIAL_API_KEYS:-}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    image: phalouvas/ph-agent-framework:latest
     restart: unless-stopped
+    environment:
+      - INITIAL_API_KEYS=${PH_AGENT_INITIAL_API_KEYS:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    labels:
+      traefik.docker.network: traefik-public
+      traefik.port: "8000"
+      traefik.enable: "true"
+      traefik.http.routers.ph_agent_1-http.entrypoints: http
+      traefik.http.routers.ph_agent_1-http.middlewares: https-redirect
+      traefik.http.routers.ph_agent_1-http.rule: Host(`agent.kainotomo.com`)
+      traefik.http.routers.ph_agent_1-http.service: ph_agent_1
+      traefik.http.routers.ph_agent_1-https.entrypoints: https
+      traefik.http.routers.ph_agent_1-https.rule: Host(`agent.kainotomo.com`)
+      traefik.http.routers.ph_agent_1-https.service: ph_agent_1
+      traefik.http.routers.ph_agent_1-https.tls: "true"
+      traefik.http.routers.ph_agent_1-https.tls.certresolver: le
+      traefik.http.services.ph_agent_1.loadbalancer.server.port: "8000"
+    networks:
+      - open-webui-network
+      - traefik-public
+    volumes:
+      - type: volume
+        source: ph-agent-data
+        target: /app/data
 
 volumes:
-  ph_data:
+  ph-agent-data:
+    name: ph-agent-data
+    external: true
+
+networks:
+  open-webui-network:
+    name: open-webui-network
+    external: true
+  traefik-public:
+    name: traefik-public
+    external: true

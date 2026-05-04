@@ -41,13 +41,25 @@ Open WebUI (LLM + agent loop)
 ```bash
 git clone <repo-url> && cd ph-agent-framework
 cp .env.example .env
-# edit .env to set INITIAL_API_KEYS
+# edit .env — set PH_AGENT_INITIAL_API_KEYS (format: key1:label1,key2:label2)
 ```
 
 ### 2. Docker (recommended)
 
+Pre-built image from Docker Hub:
+
 ```bash
-INITIAL_API_KEYS="sk-your-secret:admin" docker compose -f docker/docker-compose.yml up -d
+export PH_AGENT_INITIAL_API_KEYS="sk-your-secret:admin"
+docker volume create ph-agent-data
+docker compose -f docker/docker-compose.yml up -d
+```
+
+Or build locally with the included script:
+
+```bash
+cd docker
+./build.sh          # build only
+./build.sh --push   # build and push to Docker Hub
 ```
 
 Verify:
@@ -70,7 +82,7 @@ INITIAL_API_KEYS="sk-dev:dev" uvicorn app.main:app --reload --port 8000
 ## Register in Open WebUI
 
 1. Go to **Admin Settings → Tools → Add Tool Server**
-2. URL: `http://<host>:8000` (or `http://localhost:8000` if running locally)
+2. URL: `http://<host>:8000` (use `http://ph-agent-framework:8000` when both containers share the same Docker network)
 3. Auth: **Bearer Token** — paste your API key (e.g. `sk-your-secret`)
 4. Open WebUI fetches `/openapi.json` and registers every tool
 
@@ -190,6 +202,6 @@ ph-agent-framework/
 │   └── schemas/             # Pydantic schemas (ToolContext, ErrorResponse, …)
 ├── config/                  # YAML config files (mounted read-only in Docker)
 ├── tests/                   # pytest suite (14 tests)
-├── docker/                  # Dockerfile + docker-compose.yml
+├── docker/                  # Dockerfile, compose file, build script
 └── requirements.txt
 ```
