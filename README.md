@@ -20,7 +20,7 @@ Open WebUI (LLM + agent loop)
 │  utility ──────┤  text_transform, id │
 │  (your plugin)─┤  …                  │
 │                                      │
-│  SQLite ─── API keys, tenant routing │
+│  YAML ───── API keys, tenant routing │
 └──────────────────────────────────────┘
     │
     │  httpx (token auth)
@@ -106,29 +106,29 @@ Once registered, tools appear in the chat "+" menu. Example interactions:
 
 All `/tools/*` endpoints require `X-API-Key: <key>` (or `Authorization: Bearer <key>` sent by Open WebUI).
 
-API keys are SHA-256 hashed and stored in SQLite. On first startup, the table is seeded from the `INITIAL_API_KEYS` env var:
+API keys are SHA-256 hashed and stored in a YAML file (`data/api_keys.yaml`). On first startup, if the file doesn't exist, it's bootstrapped from the `INITIAL_API_KEYS` env var:
 
 ```
 INITIAL_API_KEYS=key1:label1,key2:label2
 ```
 
+See `app/plugins/erpnext/api_keys.sample.yaml` for a documented example with ERPNext tenant mappings.
+
 ## ERPNext tenant routing
 
-Map an API key to an ERPNext instance by inserting a row into the `tenant_mappings` table. No built-in admin UI yet — insert directly:
+Map an API key to an ERPNext instance by adding a `tenant` block to the key's entry in `data/api_keys.yaml`:
 
-```sql
-INSERT INTO tenant_mappings (id, api_key_id, erpnext_url, erpnext_api_key, erpnext_api_secret, is_default)
-VALUES (
-  '<uuid>',
-  '<api_key_id from api_keys table>',
-  'https://erp.example.com',
-  '<erpnext-api-key>',
-  '<erpnext-api-secret>',
-  1
-);
+```yaml
+api_keys:
+  - key: sk-abc123
+    name: alice
+    tenant:
+      url: https://erp.example.com
+      api_key: erp-api-key
+      api_secret: erp-api-secret
 ```
 
-When a request arrives with that API key, the ERPNext tool handler resolves the tenant and calls the correct ERPNext instance. ERPNext enforces its own permissions based on the ERPNext API key used.
+The file is loaded into memory at startup. To apply changes, restart the server. When a request arrives with that API key, the ERPNext tool handler resolves the tenant and calls the correct ERPNext instance. ERPNext enforces its own permissions based on the ERPNext API key used.
 
 ## Adding a tool plugin
 
@@ -181,7 +181,7 @@ plugins:
 
 | Source | Purpose | Example |
 |---|---|---|
-| `config/config.yaml` | App settings | host, port, log_level, database_path |
+| `config/config.yaml` | App settings | host, port, log_level, keys_yaml_path |
 | `config/plugins.yaml` | Plugin enable/disable + per-plugin config | `system: {enabled: true}` |
 | `.env` / env vars | Secrets | `INITIAL_API_KEYS`, `LOG_LEVEL` |
 
@@ -198,9 +198,9 @@ ph-agent-framework/
 │   ├── core/                # Registry, security, plugin loader, errors
 │   ├── plugins/             # Tool modules (system, erpnext, utility, …)
 │   │   └── interface.py     # Plugin contract (register function signature)
-│   ├── db/                  # SQLAlchemy models, engine, repositories
 │   └── schemas/             # Pydantic schemas (ToolContext, ErrorResponse, …)
 ├── config/                  # YAML config files (mounted read-only in Docker)
+├── data/                    # API keys YAML file (Docker volume mount)
 ├── tests/                   # pytest suite (14 tests)
 ├── docker/                  # Dockerfile, compose file, build script
 └── requirements.txt
