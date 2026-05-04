@@ -1,2 +1,195 @@
 # PH Agent Framework
-ph-agent-framework is a production‑ready Python backend built on Microsoft Agent Framework. It acts as a secure Tool Server for Open WebUI, routing tool calls to multiple ERPNext instances with per‑user authentication and permission enforcement. Designed for clean integration, multi‑tenant ERPNext environments, and AI‑driven automation.
+
+A production-ready, Dockerized tool server backend for [Open WebUI](https://docs.openwebui.com/). Exposes a pluggable suite of tools via an OpenAPI-compatible HTTP API. When the LLM triggers a function call, Open WebUI sends it here for execution.
+
+## Architecture
+
+```
+Open WebUI (LLM + agent loop)
+    │
+    │  POST /tools/{tool_name}   (OpenAPI 3.1)
+    │  Authorization: Bearer <api-key>
+    ▼
+┌──────────────────────────────────────┐
+│         PH Agent Framework           │
+│                                      │
+│  FastAPI → Tool Registry → Plugins   │
+│                │                     │
+│  system ───────┤  ping, info, rng    │
+│  erpnext ──────┤  get_doc, search    │
+│  utility ──────┤  text_transform, id │
+│  (your plugin)─┤  …                  │
+│                                      │
+│  SQLite ─── API keys, tenant routing │
+└──────────────────────────────────────┘
+    │
+    │  httpx (token auth)
+    ▼
+┌──────────┐   ┌──────────┐
+│ ERPNext A│   │ ERPNext B│
+└──────────┘   └──────────┘
+```
+
+- **Open WebUI** owns the LLM conversation and decides when to call a tool.
+- **This backend** is a pure execution server — it receives tool requests, runs the corresponding Python handler, and returns the result.
+- **ERPNext permissions** are enforced by ERPNext itself. This backend routes requests to the correct instance based on the API key used.
+
+## Quick start
+
+### 1. Clone and configure
+
+```bash
+git clone <repo-url> && cd ph-agent-framework
+cp .env.example .env
+# edit .env to set INITIAL_API_KEYS
+```
+
+### 2. Docker (recommended)
+
+```bash
+INITIAL_API_KEYS="sk-your-secret:admin" docker compose -f docker/docker-compose.yml up -d
+```
+
+Verify:
+
+```bash
+curl http://localhost:8000/health
+# → {"status":"ok","version":"0.1.0"}
+
+curl http://localhost:8000/openapi.json | jq '.paths | keys'
+# → ["/health","/tools/system_ping","/tools/system_info",…]
+```
+
+### 3. Local dev (no Docker)
+
+```bash
+pip install -r requirements.txt
+INITIAL_API_KEYS="sk-dev:dev" uvicorn app.main:app --reload --port 8000
+```
+
+## Register in Open WebUI
+
+1. Go to **Admin Settings → Tools → Add Tool Server**
+2. URL: `http://<host>:8000` (or `http://localhost:8000` if running locally)
+3. Auth: **Bearer Token** — paste your API key (e.g. `sk-your-secret`)
+4. Open WebUI fetches `/openapi.json` and registers every tool
+
+Each tool's `operationId` becomes the function name the LLM sees. The `description` and parameter `Field(description=…)` values are what the LLM reads to decide when and how to call the tool.
+
+## Using the tools
+
+Once registered, tools appear in the chat "+" menu. Example interactions:
+
+| User says | LLM calls | Backend does |
+|---|---|---|
+| "Is the system up?" | `system_ping` | returns `{"pong": true}` |
+| "What's the CPU at?" | `system_info` | returns CPU/mem/disk/uptime |
+| "Pick a number 1–100" | `random_number` | returns random int |
+| "Get invoice SINV-24-00001" | `erpnext_get_doc` | fetches from ERPNext |
+| "Search items for 'widget'" | `erpnext_search_docs` | searches ERPNext |
+| "Uppercase 'hello'" | `text_transform` | returns `"HELLO"` |
+| "Generate an ID" | `generate_id` | returns UUID |
+
+## Authentication
+
+All `/tools/*` endpoints require `X-API-Key: <key>` (or `Authorization: Bearer <key>` sent by Open WebUI).
+
+API keys are SHA-256 hashed and stored in SQLite. On first startup, the table is seeded from the `INITIAL_API_KEYS` env var:
+
+```
+INITIAL_API_KEYS=key1:label1,key2:label2
+```
+
+## ERPNext tenant routing
+
+Map an API key to an ERPNext instance by inserting a row into the `tenant_mappings` table. No built-in admin UI yet — insert directly:
+
+```sql
+INSERT INTO tenant_mappings (id, api_key_id, erpnext_url, erpnext_api_key, erpnext_api_secret, is_default)
+VALUES (
+  '<uuid>',
+  '<api_key_id from api_keys table>',
+  'https://erp.example.com',
+  '<erpnext-api-key>',
+  '<erpnext-api-secret>',
+  1
+);
+```
+
+When a request arrives with that API key, the ERPNext tool handler resolves the tenant and calls the correct ERPNext instance. ERPNext enforces its own permissions based on the ERPNext API key used.
+
+## Adding a tool plugin
+
+1. Create a package under `app/plugins/` with a `register()` function:
+
+```python
+# app/plugins/myplugin/__init__.py
+from app.core.registry import ToolRegistry
+from . import tools
+
+def register(registry: ToolRegistry):
+    registry.register(
+        name="my_tool",
+        description="What this tool does (the LLM reads this)",
+        handler=tools.my_handler,
+        request_model=tools.MyRequest,
+        response_model=tools.MyResponse,
+        tags=["myplugin"],
+    )
+```
+
+2. Define the tool handler and Pydantic schemas in `tools.py`:
+
+```python
+# app/plugins/myplugin/tools.py
+from pydantic import BaseModel, Field
+from app.schemas.tool_context import ToolContext
+
+class MyRequest(BaseModel):
+    param: str = Field(..., description="A parameter description")
+
+class MyResponse(BaseModel):
+    result: str = Field(..., description="The result")
+
+async def my_handler(request: MyRequest, context: ToolContext) -> MyResponse:
+    return MyResponse(result=f"processed: {request.param}")
+```
+
+3. Enable it in `config/plugins.yaml`:
+
+```yaml
+plugins:
+  myplugin:
+    enabled: true
+```
+
+4. Restart the server. The tool appears in `/openapi.json` automatically.
+
+## Configuration
+
+| Source | Purpose | Example |
+|---|---|---|
+| `config/config.yaml` | App settings | host, port, log_level, database_path |
+| `config/plugins.yaml` | Plugin enable/disable + per-plugin config | `system: {enabled: true}` |
+| `.env` / env vars | Secrets | `INITIAL_API_KEYS`, `LOG_LEVEL` |
+
+Environment variables override YAML values. Secrets must never go in YAML files.
+
+## Project structure
+
+```
+ph-agent-framework/
+├── app/
+│   ├── main.py              # FastAPI app, lifespan, middleware
+│   ├── config.py            # Settings (YAML + env)
+│   ├── api/                 # Route builder, health, dependencies
+│   ├── core/                # Registry, security, plugin loader, errors
+│   ├── plugins/             # Tool modules (system, erpnext, utility, …)
+│   │   └── interface.py     # Plugin contract (register function signature)
+│   ├── db/                  # SQLAlchemy models, engine, repositories
+│   └── schemas/             # Pydantic schemas (ToolContext, ErrorResponse, …)
+├── config/                  # YAML config files (mounted read-only in Docker)
+├── tests/                   # pytest suite (14 tests)
+├── docker/                  # Dockerfile + docker-compose.yml
+└── requirements.txt
+```
