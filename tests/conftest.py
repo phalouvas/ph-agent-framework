@@ -60,7 +60,7 @@ def test_app(test_db, tmp_path):
                 "plugins": {
                     "system": {"enabled": True},
                     "erpnext": {"enabled": True},
-                    "utility": {"enabled": False},
+                    "utility": {"enabled": True},
                 }
             }
         )
