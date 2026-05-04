@@ -35,11 +35,21 @@ async def bootstrap_api_keys(db: AsyncSession, initial_keys: str) -> None:
         await db.commit()
 
 
+def _extract_api_key(request: Request) -> str | None:
+    """Extract API key from X-API-Key or Authorization: Bearer header."""
+    if key := request.headers.get("X-API-Key"):
+        return key
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:]
+    return None
+
+
 async def validate_api_key(request: Request, db: AsyncSession):
-    """FastAPI dependency: extract and validate X-API-Key header."""
-    api_key = request.headers.get("X-API-Key")
+    """FastAPI dependency: extract and validate the API key."""
+    api_key = _extract_api_key(request)
     if not api_key:
-        raise AuthenticationError("Missing X-API-Key header")
+        raise AuthenticationError("Missing X-API-Key or Authorization: Bearer header")
 
     key_hash = hash_api_key(api_key)
     key_record = await get_api_key_by_hash(db, key_hash)
