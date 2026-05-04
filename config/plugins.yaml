@@ -1,0 +1,10 @@
+plugins:
+  system:
+    enabled: true
+  erpnext:
+    enabled: true
+    config:
+      default_instance_url: ""
+      request_timeout: 30
+  utility:
+    enabled: true
