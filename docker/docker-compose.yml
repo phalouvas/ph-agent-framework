@@ -2,6 +2,8 @@ name: ai
 services:
   ph-agent-framework:
     image: phalouvas/ph-agent-framework:latest
+    ports:
+      - "8000:8000"
     restart: unless-stopped
     environment:
       - INITIAL_API_KEYS=${PH_AGENT_INITIAL_API_KEYS:-}
