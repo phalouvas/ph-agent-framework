@@ -45,8 +45,8 @@
 #   Resolution order: user tenant (if email matches) → key-level tenant → None
 
 api_keys:
-  - key: sk-abc123
-    name: production-key
+  - key: sk-dev-secret
+    name: dev-admin
     tenant:
       url: https://erp.example.com
       api_key: default-erp-key
