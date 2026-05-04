@@ -78,6 +78,13 @@ def register_error_handlers(app: FastAPI) -> None:
     async def erpnext_conn_error(request: Request, exc: ErpNextConnectionError):
         return JSONResponse(status_code=502, content={"code": 502, "message": str(exc)})
 
+    @app.exception_handler(ValidationError)
+    async def validation_error(request: Request, exc: ValidationError):
+        return JSONResponse(
+            status_code=422,
+            content={"code": 422, "message": str(exc.errors(include_url=False))},
+        )
+
     @app.exception_handler(ToolExecutionError)
     async def tool_exec_error(request: Request, exc: ToolExecutionError):
         return JSONResponse(status_code=500, content={"code": 500, "message": str(exc)})
