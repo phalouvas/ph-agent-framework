@@ -1,2 +1,2 @@
-# ph-agent-framework
-A standalone, Dockerized Microsoft Agent Framework backend that provides secure, multi‑tenant ERPNext tool execution for Open WebUI. Includes FastAPI server, API‑key authentication, user‑to‑ERPNext mapping, and a modular tool system for ERPNext automation.
+# PH Agent framework
+ph-agent-framework is a production‑ready Python backend built on Microsoft Agent Framework. It acts as a secure Tool Server for Open WebUI, routing tool calls to multiple ERPNext instances with per‑user authentication and permission enforcement. Designed for clean integration, multi‑tenant ERPNext environments, and AI‑driven automation.
