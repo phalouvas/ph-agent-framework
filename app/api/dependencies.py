@@ -19,9 +19,11 @@ async def get_tool_context(
     request: Request,
     api_key=Depends(get_api_key),
 ) -> ToolContext:
-    tenant = resolve_tenant(api_key)
+    user_email = api_key.get("user_email")
+    tenant = resolve_tenant(api_key, user_email)
     return ToolContext(
         api_key_id=api_key["id"],
         api_key_name=api_key["name"],
         tenant=tenant,
+        user_email=user_email,
     )

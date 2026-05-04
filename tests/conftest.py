@@ -9,6 +9,7 @@ from app.config import Settings
 
 TEST_API_KEY = "sk-test-secret"
 TEST_API_KEY_NAME = "test-user"
+TEST_USER_EMAIL = "alice@example.com"
 
 
 @pytest.fixture(scope="session")
@@ -31,6 +32,16 @@ def test_keys_yaml(tmp_path):
                     "api_key": "erp-api-key",
                     "api_secret": "erp-api-secret",
                 },
+                "users": [
+                    {
+                        "email": TEST_USER_EMAIL,
+                        "tenant": {
+                            "url": "https://erp-alice.example.com",
+                            "api_key": "alice-erp-key",
+                            "api_secret": "alice-erp-secret",
+                        },
+                    }
+                ],
             }
         ]
     }
@@ -77,3 +88,11 @@ def client(test_app):
 @pytest.fixture
 def auth_headers():
     return {"X-API-Key": TEST_API_KEY}
+
+
+@pytest.fixture
+def auth_headers_with_user():
+    return {
+        "X-API-Key": TEST_API_KEY,
+        "X-OpenWebUI-User-Email": TEST_USER_EMAIL,
+    }

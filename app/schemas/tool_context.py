@@ -13,4 +13,5 @@ class ToolContext:
     api_key_id: str
     api_key_name: str
     tenant: ErpNextTenant | None = None
+    user_email: str | None = None
     extra: dict = field(default_factory=dict)

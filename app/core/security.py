@@ -19,8 +19,11 @@ def _extract_api_key(request: Request) -> str | None:
     return None
 
 
-async def validate_api_key(request: Request):
-    """FastAPI dependency: extract and validate the API key."""
+async def validate_api_key(request: Request) -> dict:
+    """FastAPI dependency: extract and validate the API key.
+
+    Returns a dict with key info plus the forwarded user email (if any).
+    """
     api_key = _extract_api_key(request)
     if not api_key:
         raise AuthenticationError("Missing X-API-Key or Authorization: Bearer header")
@@ -31,4 +34,5 @@ async def validate_api_key(request: Request):
     if key_info is None:
         raise AuthenticationError("Invalid API key")
 
-    return key_info
+    user_email = request.headers.get("X-OpenWebUI-User-Email")
+    return {**key_info, "user_email": user_email}
