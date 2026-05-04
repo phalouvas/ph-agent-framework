@@ -3,6 +3,7 @@ from typing import Any
 
 from fastapi import Body, Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from app.api.dependencies import get_tool_context
 from app.core.errors import (
@@ -28,6 +29,8 @@ def _make_handler(tool_entry, tool_registry: ToolRegistry):
 
         try:
             parsed = request_model.model_validate(body)
+        except ValidationError as e:
+            raise
         except Exception as e:
             raise ToolExecutionError(f"Invalid request: {e}")
 
