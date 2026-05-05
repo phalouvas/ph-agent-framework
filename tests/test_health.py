@@ -16,7 +16,5 @@ def test_openapi_schema(client):
     # Verify tool endpoints are registered
     paths = data["paths"]
     assert "/tools/system_ping" in paths
-    assert "/tools/system_info" in paths
-    assert "/tools/random_number" in paths
     assert "/tools/erpnext_get_doc" in paths
     assert "/tools/erpnext_search_docs" in paths

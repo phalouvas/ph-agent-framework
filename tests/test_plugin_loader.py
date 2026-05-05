@@ -21,7 +21,7 @@ def test_load_plugins_loads_enabled(tmp_path):
 
     registry = ToolRegistry()
     load_plugins(registry, config_path)
-    assert len(registry) == 3  # ping, system_info, random_number
+    assert len(registry) == 1  # ping
 
 
 def test_load_plugins_missing_config(tmp_path):

@@ -1,26 +1,3 @@
-def test_text_transform(client, auth_headers):
-    response = client.post(
-        "/tools/text_transform",
-        json={"text": "hello", "operation": "uppercase"},
-        headers=auth_headers,
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["result"] == "HELLO"
-
-
-def test_generate_id(client, auth_headers):
-    response = client.post(
-        "/tools/generate_id",
-        json={"kind": "uuid"},
-        headers=auth_headers,
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "id" in data
-    assert data["kind"] == "uuid"
-
-
 def test_server_datetime(client, auth_headers):
     response = client.post(
         "/tools/server_datetime", json={}, headers=auth_headers
