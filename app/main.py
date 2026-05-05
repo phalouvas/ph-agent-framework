@@ -15,6 +15,7 @@ from app.config import Settings, get_settings
 from app.core.keys_config import bootstrap_keys_yaml, load_keys_config
 from app.core.plugin_loader import load_plugins
 from app.core.registry import ToolRegistry
+from app.plugins.erpnext.client import ErpNextClient
 
 logger = logging.getLogger(__name__)
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -73,6 +74,7 @@ def create_app(
         logger.info("Startup complete — %d tools registered", len(tool_registry))
         yield
         logger.info("Shutting down...")
+        await ErpNextClient.close_pool()
 
     app = FastAPI(
         title="PH Agent Framework",

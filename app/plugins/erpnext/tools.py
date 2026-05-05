@@ -6,7 +6,7 @@ from app.plugins.erpnext.client import ErpNextClient
 from app.schemas.tool_context import ToolContext
 
 
-# --- Get Document ---
+# ── Get Document ──────────────────────────────────────────────────────
 
 class GetDocRequest(BaseModel):
     doctype: str = Field(
@@ -41,7 +41,7 @@ async def get_doc_handler(request: GetDocRequest, context: ToolContext) -> GetDo
         return GetDocResponse(error=str(e))
 
 
-# --- Search Documents ---
+# ── Search Documents ──────────────────────────────────────────────────
 
 class SearchDocsRequest(BaseModel):
     doctype: str = Field(
@@ -75,13 +75,23 @@ class SearchDocsRequest(BaseModel):
     expand: list[str] | None = Field(
         None, description="List of field names to expand into full related documents"
     )
+    include_total_count: bool = Field(
+        False,
+        description="If true, also returns the total count of matching documents (uses one extra API call). Use when you need to know the total number of results beyond the current page.",
+    )
 
 
 class SearchDocsResponse(BaseModel):
     results: list[dict[str, Any]] = Field(
         default_factory=list, description="List of matching documents"
     )
-    count: int = Field(0, description="Number of results returned")
+    count: int = Field(0, description="Number of results in the current page")
+    has_more: bool = Field(
+        False, description="True if there are more results beyond the current page"
+    )
+    total_count: int | None = Field(
+        None, description="Total number of matching documents (only set when include_total_count was True)"
+    )
     error: str | None = Field(None, description="Error message if the search failed")
 
 
@@ -100,15 +110,28 @@ async def search_docs_handler(request: SearchDocsRequest, context: ToolContext) 
             order_by=request.order_by,
             expand=request.expand,
         )
+        items = results if isinstance(results, list) else []
+        has_more = len(items) == request.limit if request.limit > 0 else False
+
+        total_count = None
+        if request.include_total_count:
+            total_count = await client.count_docs(
+                doctype=request.doctype,
+                filters=request.filters,
+                or_filters=request.or_filters,
+            )
+
         return SearchDocsResponse(
-            results=results if isinstance(results, list) else [],
-            count=len(results) if isinstance(results, list) else 0,
+            results=items,
+            count=len(items),
+            has_more=has_more,
+            total_count=total_count,
         )
     except Exception as e:
         return SearchDocsResponse(error=str(e))
 
 
-# --- Create Document ---
+# ── Create Document ────────────────────────────────────────────────────
 
 class CreateDocRequest(BaseModel):
     doctype: str = Field(
@@ -137,7 +160,7 @@ async def create_doc_handler(request: CreateDocRequest, context: ToolContext) ->
         return CreateDocResponse(error=str(e))
 
 
-# --- Update Document ---
+# ── Update Document ────────────────────────────────────────────────────
 
 class UpdateDocRequest(BaseModel):
     doctype: str = Field(
@@ -169,7 +192,7 @@ async def update_doc_handler(request: UpdateDocRequest, context: ToolContext) ->
         return UpdateDocResponse(error=str(e))
 
 
-# --- Delete Document ---
+# ── Delete Document ────────────────────────────────────────────────────
 
 class DeleteDocRequest(BaseModel):
     doctype: str = Field(
@@ -196,7 +219,92 @@ async def delete_doc_handler(request: DeleteDocRequest, context: ToolContext) ->
         return DeleteDocResponse(error=str(e))
 
 
-# --- Get Doctype Meta ---
+# ── Submit Document ────────────────────────────────────────────────────
+
+class SubmitDocRequest(BaseModel):
+    doctype: str = Field(
+        ..., description="ERPNext doctype name, e.g., 'Sales Invoice', 'Purchase Order', 'Sales Order'. Must be a submittable doctype."
+    )
+    docname: str = Field(
+        ..., description="Document name/ID to submit, e.g., 'SINV-24-00001'. The document must be in 'Draft' status (docstatus=0)."
+    )
+
+
+class SubmitDocResponse(BaseModel):
+    doc: dict[str, Any] | None = Field(None, description="The submitted document data")
+    error: str | None = Field(None, description="Error message if submission failed")
+
+
+async def submit_doc_handler(request: SubmitDocRequest, context: ToolContext) -> SubmitDocResponse:
+    if context.tenant is None:
+        return SubmitDocResponse(error="No ERPNext tenant configured for this API key")
+    client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
+    try:
+        doc = await client.submit_doc(request.doctype, request.docname)
+        return SubmitDocResponse(doc=doc)
+    except Exception as e:
+        return SubmitDocResponse(error=str(e))
+
+
+# ── Cancel Document ────────────────────────────────────────────────────
+
+class CancelDocRequest(BaseModel):
+    doctype: str = Field(
+        ..., description="ERPNext doctype name, e.g., 'Sales Invoice', 'Purchase Order'"
+    )
+    docname: str = Field(
+        ..., description="Document name/ID to cancel, e.g., 'SINV-24-00001'. The document must be in 'Submitted' status (docstatus=1)."
+    )
+
+
+class CancelDocResponse(BaseModel):
+    doc: dict[str, Any] | None = Field(None, description="The cancelled document data (docstatus changes to 2)")
+    error: str | None = Field(None, description="Error message if cancellation failed")
+
+
+async def cancel_doc_handler(request: CancelDocRequest, context: ToolContext) -> CancelDocResponse:
+    if context.tenant is None:
+        return CancelDocResponse(error="No ERPNext tenant configured for this API key")
+    client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
+    try:
+        doc = await client.cancel_doc(request.doctype, request.docname)
+        return CancelDocResponse(doc=doc)
+    except Exception as e:
+        return CancelDocResponse(error=str(e))
+
+
+# ── Amend Document ─────────────────────────────────────────────────────
+
+class AmendDocRequest(BaseModel):
+    doctype: str = Field(
+        ..., description="ERPNext doctype name, e.g., 'Sales Invoice', 'Purchase Order'"
+    )
+    docname: str = Field(
+        ..., description="Document name/ID to amend. The document must be in 'Cancelled' status (docstatus=2). This creates a new 'Draft' document linked to the original."
+    )
+    data: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Optional field overrides for the amended copy, e.g., {'items': [...]} to modify line items. Only include fields you want to change.",
+    )
+
+
+class AmendDocResponse(BaseModel):
+    doc: dict[str, Any] | None = Field(None, description="The amended document (new draft version linked to the original)")
+    error: str | None = Field(None, description="Error message if amendment failed")
+
+
+async def amend_doc_handler(request: AmendDocRequest, context: ToolContext) -> AmendDocResponse:
+    if context.tenant is None:
+        return AmendDocResponse(error="No ERPNext tenant configured for this API key")
+    client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
+    try:
+        doc = await client.amend_doc(request.doctype, request.docname, request.data)
+        return AmendDocResponse(doc=doc)
+    except Exception as e:
+        return AmendDocResponse(error=str(e))
+
+
+# ── Get Doctype Meta ────────────────────────────────────────────────────
 
 class GetDoctypeMetaRequest(BaseModel):
     doctype: str = Field(
@@ -222,7 +330,7 @@ async def get_doctype_meta_handler(request: GetDoctypeMetaRequest, context: Tool
         return GetDoctypeMetaResponse(error=str(e))
 
 
-# --- List Doctypes ---
+# ── List Doctypes ──────────────────────────────────────────────────────
 
 class ListDoctypesRequest(BaseModel):
     query: str = Field(
@@ -258,7 +366,47 @@ async def list_doctypes_handler(request: ListDoctypesRequest, context: ToolConte
         return ListDoctypesResponse(error=str(e))
 
 
-# --- Upload File ---
+# ── Count Documents ────────────────────────────────────────────────────
+
+class CountDocsRequest(BaseModel):
+    doctype: str = Field(
+        ..., description="ERPNext doctype to count, e.g., 'Sales Invoice', 'Customer', 'Item'. Always use the singular doctype name as it appears in the system."
+    )
+    filters: list | None = Field(
+        None, description="Optional filter conditions as [field, operator, value] triples, e.g., [['status', '=', 'Open']]. Same format as erpnext_search_docs."
+    )
+    or_filters: list | None = Field(
+        None, description="Optional OR filter conditions, same format as filters"
+    )
+
+
+class CountDocsResponse(BaseModel):
+    doctype: str = Field("", description="The doctype that was counted")
+    count: int = Field(0, description="Number of matching documents")
+    has_filters: bool = Field(False, description="Whether filters were applied")
+    error: str | None = Field(None, description="Error message if the count failed")
+
+
+async def count_docs_handler(request: CountDocsRequest, context: ToolContext) -> CountDocsResponse:
+    if context.tenant is None:
+        return CountDocsResponse(doctype=request.doctype, error="No ERPNext tenant configured for this API key")
+    client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
+    try:
+        count = await client.count_docs(
+            doctype=request.doctype,
+            filters=request.filters,
+            or_filters=request.or_filters,
+        )
+        return CountDocsResponse(
+            doctype=request.doctype,
+            count=count,
+            has_filters=bool(request.filters or request.or_filters),
+        )
+    except Exception as e:
+        return CountDocsResponse(doctype=request.doctype, error=str(e))
+
+
+# ── Upload File ────────────────────────────────────────────────────────
 
 class UploadFileRequest(BaseModel):
     file_name: str = Field(
@@ -321,7 +469,136 @@ async def upload_file_handler(request: UploadFileRequest, context: ToolContext) 
         return UploadFileResponse(error=str(e))
 
 
-# --- Run Method ---
+# ── Get File ────────────────────────────────────────────────────────────
+
+class GetFileRequest(BaseModel):
+    file_url: str = Field(
+        ..., description="The file_url from a document's attachment field or from erpnext_list_attachments, e.g., '/files/invoice.pdf'"
+    )
+
+
+class GetFileResponse(BaseModel):
+    file: dict[str, Any] | None = Field(
+        None, description="File metadata (file_name, file_url, file_size, content_hash, is_private, attached_to_doctype, attached_to_name)"
+    )
+    error: str | None = Field(None, description="Error message if the file could not be retrieved")
+
+
+async def get_file_handler(request: GetFileRequest, context: ToolContext) -> GetFileResponse:
+    if context.tenant is None:
+        return GetFileResponse(error="No ERPNext tenant configured for this API key")
+    client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
+    try:
+        file_data = await client.get_file(request.file_url)
+        return GetFileResponse(file=file_data)
+    except Exception as e:
+        return GetFileResponse(error=str(e))
+
+
+# ── List Attachments ───────────────────────────────────────────────────
+
+class ListAttachmentsRequest(BaseModel):
+    doctype: str = Field(
+        ..., description="ERPNext doctype to list attachments for, e.g., 'Sales Invoice', 'Customer'"
+    )
+    docname: str = Field(
+        ..., description="Document name to list attachments for, e.g., 'SINV-24-00001'"
+    )
+
+
+class ListAttachmentsResponse(BaseModel):
+    files: list[dict[str, Any]] = Field(
+        default_factory=list, description="List of attached files with metadata (name, file_name, file_url, file_size)"
+    )
+    count: int = Field(0, description="Number of attachments found")
+    error: str | None = Field(None, description="Error message if listing failed")
+
+
+async def list_attachments_handler(request: ListAttachmentsRequest, context: ToolContext) -> ListAttachmentsResponse:
+    if context.tenant is None:
+        return ListAttachmentsResponse(error="No ERPNext tenant configured for this API key")
+    client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
+    try:
+        files = await client.list_files(doctype=request.doctype, docname=request.docname)
+        if not isinstance(files, list):
+            files = []
+        return ListAttachmentsResponse(files=files, count=len(files))
+    except Exception as e:
+        return ListAttachmentsResponse(error=str(e))
+
+
+# ── Ping / Health Check ────────────────────────────────────────────────
+
+class PingErpNextRequest(BaseModel):
+    """No parameters needed — the tenant is resolved from the API key."""
+
+
+class PingErpNextResponse(BaseModel):
+    available: bool = Field(False, description="Whether the ERPNext instance is reachable and responsive")
+    url: str = Field("", description="The ERPNext instance URL that was checked")
+    latency_ms: float | None = Field(None, description="Response time in milliseconds")
+    version: str | None = Field(None, description="Frappe version string if available")
+    error: str | None = Field(None, description="Error message if the check failed")
+
+
+async def ping_handler(_request: PingErpNextRequest, context: ToolContext) -> PingErpNextResponse:
+    if context.tenant is None:
+        return PingErpNextResponse(error="No ERPNext tenant configured for this API key")
+    client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
+    try:
+        result = await client.ping()
+        return PingErpNextResponse(
+            available=result.get("available", False),
+            url=context.tenant.url,
+            latency_ms=result.get("latency_ms"),
+            version=result.get("message") if result.get("available") else None,
+        )
+    except Exception as e:
+        return PingErpNextResponse(error=str(e), url=context.tenant.url)
+
+
+# ── Get Fieldset ────────────────────────────────────────────────────────
+
+class GetFieldsetRequest(BaseModel):
+    doctype: str = Field(
+        ..., description="ERPNext doctype name to get the curated field template for, e.g., 'Sales Order', 'Sales Invoice', 'Customer', 'Item', 'Supplier', 'Purchase Order'"
+    )
+
+
+class GetFieldsetResponse(BaseModel):
+    doctype: str = Field("", description="The doctype this fieldset is for")
+    fieldset: dict[str, Any] | None = Field(
+        None, description="Organized field template with 'required', 'optional', and 'child_tables' sections. Each section lists field names, types, descriptions, and example values."
+    )
+    is_known: bool = Field(False, description="Whether this doctype has a curated fieldset. If false, use erpnext_get_doctype_meta instead.")
+    error: str | None = Field(None, description="Error message if the lookup failed")
+
+
+async def get_fieldset_handler(request: GetFieldsetRequest, context: ToolContext) -> GetFieldsetResponse:
+    if context.tenant is None:
+        return GetFieldsetResponse(error="No ERPNext tenant configured for this API key")
+    try:
+        from app.plugins.erpnext.fieldsets import get_fieldset
+    except ImportError:
+        return GetFieldsetResponse(
+            doctype=request.doctype,
+            is_known=False,
+            error="Fieldsets module not available. Use erpnext_get_doctype_meta to discover the schema.",
+        )
+    try:
+        fieldset = get_fieldset(request.doctype)
+        if fieldset is None:
+            return GetFieldsetResponse(
+                doctype=request.doctype,
+                is_known=False,
+                error=f"No curated fieldset for '{request.doctype}'. Use erpnext_get_doctype_meta to discover the schema.",
+            )
+        return GetFieldsetResponse(doctype=request.doctype, fieldset=fieldset, is_known=True)
+    except Exception as e:
+        return GetFieldsetResponse(doctype=request.doctype, error=str(e))
+
+
+# ── Run Method ──────────────────────────────────────────────────────────
 
 class RunMethodRequest(BaseModel):
     method_path: str = Field(
@@ -355,7 +632,7 @@ async def run_method_handler(request: RunMethodRequest, context: ToolContext) ->
         return RunMethodResponse(error=str(e))
 
 
-# --- Run Report ---
+# ── Run Report ──────────────────────────────────────────────────────────
 
 class RunReportRequest(BaseModel):
     report_name: str = Field(
@@ -371,7 +648,11 @@ class RunReportRequest(BaseModel):
 
 
 class RunReportResponse(BaseModel):
-    result: Any = Field(None, description="Report data including columns and result rows")
+    result: Any = Field(None, description="Raw report data including columns and result rows")
+    columns: list[str] = Field(
+        default_factory=list, description="Column names extracted from the report for easier reading"
+    )
+    row_count: int = Field(0, description="Number of data rows in the report")
     error: str | None = Field(None, description="Error message if the report failed")
 
 
@@ -385,12 +666,30 @@ async def run_report_handler(request: RunReportRequest, context: ToolContext) ->
             filters=request.filters,
             file_format=request.file_format,
         )
-        return RunReportResponse(result=result)
+        # Extract structured metadata from the report result
+        columns: list[str] = []
+        row_count = 0
+        if isinstance(result, dict):
+            cols = result.get("columns", [])
+            rows = result.get("result", [])
+            if isinstance(cols, list):
+                columns = [
+                    c.get("label", str(c)) if isinstance(c, dict) else str(c)
+                    for c in cols
+                ]
+            if isinstance(rows, list):
+                row_count = len(rows)
+
+        return RunReportResponse(
+            result=result,
+            columns=columns,
+            row_count=row_count,
+        )
     except Exception as e:
         return RunReportResponse(error=str(e))
 
 
-# --- List Reports ---
+# ── List Reports ────────────────────────────────────────────────────────
 
 class ListReportsRequest(BaseModel):
     query: str = Field(
@@ -433,7 +732,7 @@ async def list_reports_handler(request: ListReportsRequest, context: ToolContext
         return ListReportsResponse(error=str(e))
 
 
-# --- Get Current User ---
+# ── Get Current User ────────────────────────────────────────────────────
 
 class GetCurrentUserRequest(BaseModel):
     """No parameters needed — identity is resolved from the API key's tenant credentials."""
@@ -455,7 +754,7 @@ async def get_current_user_handler(_request: GetCurrentUserRequest, context: Too
         return GetCurrentUserResponse(error=str(e))
 
 
-# --- Get System Info ---
+# ── Get System Info ─────────────────────────────────────────────────────
 
 class GetSystemInfoRequest(BaseModel):
     """No parameters needed."""
