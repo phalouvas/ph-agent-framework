@@ -37,6 +37,7 @@ class Tools:
         is_private: bool = True,
         folder: str = "",
         __files__: list[Any] = [],
+        __user__: dict[str, Any] = {},
         __event_emitter__: Any = None,
     ) -> str:
         """Upload an attached file to ERPNext via the ph-agent-framework server.
@@ -64,6 +65,9 @@ class Tools:
             "X-API-Key": self.valves.api_key,
             "Content-Type": "application/json",
         }
+        user_email = __user__.get("email", "")
+        if user_email:
+            headers["X-OpenWebUI-User-Email"] = user_email
         url = f"{self.valves.api_url.rstrip('/')}/tools/erpnext_upload_file"
 
         results: list[str] = []
