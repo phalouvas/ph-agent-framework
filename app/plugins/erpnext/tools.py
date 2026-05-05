@@ -262,7 +262,7 @@ async def list_doctypes_handler(request: ListDoctypesRequest, context: ToolConte
 
 class UploadFileRequest(BaseModel):
     file_name: str = Field(
-        ..., description="Name of the attached file including its extension. Use the exact filename the user shared, e.g., 'document.pdf', 'report.csv', 'notes.txt'"
+        "", description="Name of the attached file including its extension. Use the exact filename the user shared, e.g., 'document.pdf', 'report.csv', 'notes.txt'"
     )
     content: str = Field(
         ..., description="The full text content of the attached file. Copy the file content you see in the conversation into this parameter verbatim. Required unless content_base64 is provided."
@@ -286,17 +286,13 @@ class UploadFileRequest(BaseModel):
     @model_validator(mode="after")
     def check_content_not_empty(self):
         if not self.content.strip() and not self.content_base64.strip():
-            raise ValueError("Either 'content' or 'content_base64' must contain file data — both are empty. Copy the file content from the conversation into 'content'.")
+            raise ValueError("Either 'content' or 'content_base64' must contain the file's data. When a file is attached in chat, copy its content into 'content'.")
         return self
 
 
 class UploadFileResponse(BaseModel):
-    file_url: str | None = Field(
-        None, description="URL of the uploaded file in ERPNext"
-    )
-    file_name: str | None = Field(
-        None, description="Name of the uploaded file as stored in ERPNext"
-    )
+    file_url: str | None = Field(None, description="URL of the uploaded file in ERPNext")
+    file_name: str | None = Field(None, description="Name of the uploaded file as stored in ERPNext")
     success: bool = Field(False, description="True if the upload succeeded")
     error: str | None = Field(None, description="Error message if the upload failed")
 
@@ -304,10 +300,11 @@ class UploadFileResponse(BaseModel):
 async def upload_file_handler(request: UploadFileRequest, context: ToolContext) -> UploadFileResponse:
     if context.tenant is None:
         return UploadFileResponse(error="No ERPNext tenant configured for this API key")
+
     client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
     try:
         result = await client.upload_file(
-            file_name=request.file_name,
+            file_name=request.file_name or "uploaded_file",
             content_base64=request.content_base64 or None,
             content=request.content or None,
             doctype=request.doctype,
