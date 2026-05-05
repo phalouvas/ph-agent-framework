@@ -62,7 +62,7 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_upload_file",
-        description="Upload a file to ERPNext. Accepts base64-encoded content. Optionally attach the file to a specific document by providing doctype and docname. Returns the file URL. Use this to attach PDFs, images, or other files to records.",
+        description="Upload a file to ERPNext and attach it to a document. CRITICAL: When a user says 'upload the attached file', 'attach this file to X', 'save this document', or shares any file for uploading — use this tool immediately. Pass the file's text content directly as the 'content' parameter. Set doctype and docname to attach it to a specific record (e.g., doctype='Customer', docname='Test Corp'). When a user mentions attaching or uploading a file they shared, this is ALWAYS the tool to call.",
         handler=tools.upload_file_handler,
         request_model=tools.UploadFileRequest,
         response_model=tools.UploadFileResponse,

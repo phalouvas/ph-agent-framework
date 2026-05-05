@@ -137,7 +137,7 @@ def test_erpnext_list_doctypes(client, auth_headers):
     assert "Could not connect to ERPNext" in data["error"]
 
 
-def test_erpnext_upload_file(client, auth_headers):
+def test_erpnext_upload_file_base64(client, auth_headers):
     response = client.post(
         "/tools/erpnext_upload_file",
         json={
@@ -146,6 +146,23 @@ def test_erpnext_upload_file(client, auth_headers):
             "doctype": "Sales Invoice",
             "docname": "SINV-24-00001",
             "is_private": True,
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is False
+    assert "Could not connect to ERPNext" in data["error"]
+
+
+def test_erpnext_upload_file_text(client, auth_headers):
+    response = client.post(
+        "/tools/erpnext_upload_file",
+        json={
+            "file_name": "notes.txt",
+            "content": "Meeting notes for customer Acme Corp",
+            "doctype": "Customer",
+            "docname": "Acme Corp",
         },
         headers=auth_headers,
     )
@@ -348,6 +365,29 @@ class TestErpNextClient:
         assert call_kwargs["files"]["file"][0] == "test.pdf"
         assert call_kwargs["data"] == {"is_private": 1, "doctype": "Sales Invoice", "docname": "SINV-001"}
         assert result == {"file_url": "/files/test.pdf", "file_name": "test.pdf"}
+
+    @pytest.mark.asyncio
+    async def test_upload_file_plain_text(self):
+        client = ErpNextClient("https://erp.example.com", "key", "secret")
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {
+            "message": {"file_url": "/files/notes.txt", "file_name": "notes.txt"}
+        }
+
+        with patch.object(httpx.AsyncClient, "request", return_value=mock_response) as mock_req:
+            result = await client.upload_file(
+                file_name="notes.txt",
+                content="Plain text meeting notes",
+                doctype="Customer",
+                docname="Acme Corp",
+            )
+
+        call_kwargs = mock_req.call_args.kwargs
+        assert call_kwargs["files"]["file"][0] == "notes.txt"
+        assert call_kwargs["files"]["file"][1].read() == b"Plain text meeting notes"
+        assert result == {"file_url": "/files/notes.txt", "file_name": "notes.txt"}
 
     @pytest.mark.asyncio
     async def test_run_report_sends_correct_body(self):

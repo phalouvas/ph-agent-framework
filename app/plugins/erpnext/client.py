@@ -132,14 +132,20 @@ class ErpNextClient:
     async def upload_file(
         self,
         file_name: str,
-        content_base64: str,
+        content_base64: str | None = None,
+        content: str | None = None,
         doctype: str | None = None,
         docname: str | None = None,
         is_private: bool = True,
         folder: str | None = None,
     ) -> dict[str, Any]:
-        file_content = base64.b64decode(content_base64)
-        files = {"file": (file_name, io.BytesIO(file_content), "application/octet-stream")}
+        if content_base64:
+            file_bytes = base64.b64decode(content_base64)
+        elif content:
+            file_bytes = content.encode("utf-8")
+        else:
+            raise ValueError("Either content_base64 or content must be provided")
+        files = {"file": (file_name, io.BytesIO(file_bytes), "application/octet-stream")}
         data_fields: dict[str, Any] = {"is_private": int(is_private)}
         if doctype:
             data_fields["doctype"] = doctype

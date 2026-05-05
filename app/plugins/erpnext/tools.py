@@ -264,8 +264,11 @@ class UploadFileRequest(BaseModel):
     file_name: str = Field(
         ..., description="Name of the file including extension, e.g., 'invoice.pdf'"
     )
+    content: str = Field(
+        "", description="Plain text content of the file. Use this when a user attaches a text file, CSV, or when you can read the file's text directly. The server will encode it as UTF-8."
+    )
     content_base64: str = Field(
-        ..., description="Base64-encoded file content"
+        "", description="Base64-encoded file content. Use this for binary files (PDFs, images). For text files, prefer the content parameter."
     )
     doctype: str | None = Field(
         None, description="Optional doctype to attach the file to, e.g., 'Sales Invoice'"
@@ -299,7 +302,8 @@ async def upload_file_handler(request: UploadFileRequest, context: ToolContext) 
     try:
         result = await client.upload_file(
             file_name=request.file_name,
-            content_base64=request.content_base64,
+            content_base64=request.content_base64 or None,
+            content=request.content or None,
             doctype=request.doctype,
             docname=request.docname,
             is_private=request.is_private,
