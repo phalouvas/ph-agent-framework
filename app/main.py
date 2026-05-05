@@ -6,16 +6,14 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.health import router as health_router
 from app.api.router import build_routes, register_error_handlers
 from app.config import Settings, get_settings
+from app.core.keys_config import bootstrap_keys_yaml, load_keys_config
 from app.core.plugin_loader import load_plugins
 from app.core.registry import ToolRegistry
-from app.core.security import bootstrap_api_keys
-from app.db.engine import close_db, get_db, init_db
 
 logger = logging.getLogger(__name__)
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -45,7 +43,6 @@ def _get_config_dir() -> Path:
 
 def create_app(
     settings: Settings | None = None,
-    get_db_override: async_sessionmaker[AsyncSession] | None = None,
     config_dir: Path | None = None,
 ) -> FastAPI:
     if settings is None:
@@ -61,27 +58,10 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        import app.db.engine as db_engine
-
-        if get_db_override is not None:
-            db_engine._session_factory = get_db_override
-
-            async def _test_get_db():
-                async with get_db_override() as s:
-                    yield s
-
-            db_engine.get_db = _test_get_db
-        else:
-            logger.info("Initializing database...")
-            await init_db(settings.database_path)
-
-            async for db in get_db():
-                try:
-                    if settings.initial_api_keys:
-                        await bootstrap_api_keys(db, settings.initial_api_keys)
-                finally:
-                    await db.close()
-                break
+        logger.info("Loading API keys configuration...")
+        load_keys_config(settings.keys_yaml_path)
+        if settings.initial_api_keys:
+            bootstrap_keys_yaml(settings.keys_yaml_path, settings.initial_api_keys)
 
         logger.info("Loading plugins...")
         load_plugins(tool_registry, _config_dir / "plugins.yaml")
@@ -92,7 +72,6 @@ def create_app(
         logger.info("Startup complete — %d tools registered", len(tool_registry))
         yield
         logger.info("Shutting down...")
-        await close_db()
 
     app = FastAPI(
         title="PH Agent Framework",

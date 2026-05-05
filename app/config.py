@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     app_port: int = 8000
     log_level: str = "INFO"
     initial_api_keys: str = ""
-    database_path: str = "data/ph-agent.db"
+    keys_yaml_path: str = "data/api_keys.yaml"
 
     model_config = {"env_prefix": "", "case_sensitive": False}
 
@@ -35,7 +35,7 @@ def get_settings() -> Settings:
         settings.app_port = app_conf["port"]
     if "log_level" in app_conf:
         settings.log_level = app_conf["log_level"]
-    if "database_path" in app_conf:
-        settings.database_path = app_conf["database_path"]
+    if "keys_yaml_path" in app_conf:
+        settings.keys_yaml_path = app_conf["keys_yaml_path"]
 
     return settings
