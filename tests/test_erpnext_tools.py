@@ -233,6 +233,8 @@ def test_all_tools_in_openapi_schema(client):
         "/tools/erpnext_list_doctypes",
         "/tools/erpnext_upload_file",
         "/tools/erpnext_run_method",
+        "/tools/erpnext_run_report",
+        "/tools/erpnext_list_reports",
         "/tools/erpnext_get_current_user",
         "/tools/erpnext_get_system_info",
     }
@@ -346,6 +348,47 @@ class TestErpNextClient:
         assert call_kwargs["files"]["file"][0] == "test.pdf"
         assert call_kwargs["data"] == {"is_private": 1, "doctype": "Sales Invoice", "docname": "SINV-001"}
         assert result == {"file_url": "/files/test.pdf", "file_name": "test.pdf"}
+
+    @pytest.mark.asyncio
+    async def test_run_report_sends_correct_body(self):
+        client = ErpNextClient("https://erp.example.com", "key", "secret")
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {"message": {"result": [{"account": "Cash", "balance": 1000}], "columns": []}}
+
+        with patch.object(httpx.AsyncClient, "request", return_value=mock_response) as mock_req:
+            result = await client.run_report(
+                report_name="Trial Balance",
+                filters={"company": "Test Company", "from_date": "2025-01-01"},
+            )
+
+        call_kwargs = mock_req.call_args.kwargs
+        assert call_kwargs["json"] == {
+            "report_name": "Trial Balance",
+            "filters": {"company": "Test Company", "from_date": "2025-01-01"},
+            "file_format": "HTML",
+        }
+        assert result == {"result": [{"account": "Cash", "balance": 1000}], "columns": []}
+
+    @pytest.mark.asyncio
+    async def test_list_reports_uses_filters(self):
+        client = ErpNextClient("https://erp.example.com", "key", "secret")
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {"data": [{"name": "Trial Balance", "report_type": "Query Report"}]}
+
+        with patch.object(httpx.AsyncClient, "request", return_value=mock_response) as mock_req:
+            result = await client.list_reports(query="Balance", report_type="Query Report")
+
+        call_kwargs = mock_req.call_args.kwargs
+        assert "filters" in call_kwargs["params"]
+        filters = json.loads(call_kwargs["params"]["filters"])
+        assert ["is_standard", "=", "Yes"] in filters
+        assert ["name", "like", "%Balance%"] in filters
+        assert ["report_type", "=", "Query Report"] in filters
+        assert result == [{"name": "Trial Balance", "report_type": "Query Report"}]
 
 
 # ── Tenant resolution tests ────────────────────────────────────────
