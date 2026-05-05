@@ -62,7 +62,7 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_upload_file",
-        description="Upload a file to ERPNext and attach it to a document. CRITICAL: When a user says 'upload the attached file', 'attach this file to X', 'save this document', or shares any file for uploading — use this tool immediately. Pass the file's text content directly as the 'content' parameter. Set doctype and docname to attach it to a specific record (e.g., doctype='Customer', docname='Test Corp'). When a user mentions attaching or uploading a file they shared, this is ALWAYS the tool to call.",
+        description="Upload text-only content as a file to ERPNext. Use this ONLY when the user provides file content directly in the chat message (e.g., 'save these notes to Customer X', 'create a document with this text'). Pass the text verbatim as the 'content' parameter. IMPORTANT: This tool CANNOT access files attached to the chat (PDFs, images, Office documents). When a user attaches a file and says 'upload this file', 'attach this to X', or shares any binary/uploaded document — use the 'upload_file_to_erpnext' bridge tool instead, which can read chat attachments that this tool cannot access.",
         handler=tools.upload_file_handler,
         request_model=tools.UploadFileRequest,
         response_model=tools.UploadFileResponse,

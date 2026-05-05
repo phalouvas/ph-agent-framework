@@ -88,6 +88,33 @@ INITIAL_API_KEYS="sk-dev:dev" uvicorn app.main:app --reload --port 8000
 
 Each tool's `operationId` becomes the function name the LLM sees. The `description` and parameter `Field(description=…)` values are what the LLM reads to decide when and how to call the tool.
 
+## File uploads to ERPNext
+
+When a user attaches a file in chat and asks to upload it to ERPNext, Open WebUI's external tool servers don't receive file data automatically. To bridge this gap, a lightweight importable tool is included.
+
+### 1. Import the bridge tool
+
+1. In Open WebUI, go to **Workspace → Tools → Import Tool**
+2. Enter the URL: `http://<host>:8000/bridges/erpnext_upload_bridge.py`
+   - If both containers are on the same Docker network, use `http://ph-agent-framework:8000/bridges/erpnext_upload_bridge.py`
+3. Click **Import**
+
+### 2. Configure the bridge
+
+After importing, open the tool and set its **Valves**:
+- `api_url` — the ph-agent-framework server URL (default: `http://ph-agent-framework:8000`)
+- `api_key` — your PH Agent Framework API key (e.g. `sk-your-secret`)
+
+### 3. How it works
+
+1. User attaches a file in chat: "Upload this file to Customer Test Corp"
+2. The LLM calls the bridge tool `upload_file_to_erpnext` with `doctype` and `docname`
+3. Open WebUI injects `__files__` with the uploaded file's content
+4. The bridge reads the file, base64-encodes it, and forwards it to the ph-agent-framework server
+5. The server uploads the file to ERPNext via the standard `upload_file` API
+
+The bridge contains no business logic — all ERPNext operations stay in ph-agent-framework.
+
 ## Using the tools
 
 Once registered, tools appear in the chat "+" menu. Example interactions:
