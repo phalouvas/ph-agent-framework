@@ -265,7 +265,7 @@ class UploadFileRequest(BaseModel):
         "", description="Name of the attached file including its extension. Use the exact filename the user shared, e.g., 'document.pdf', 'report.csv', 'notes.txt'"
     )
     content: str = Field(
-        ..., description="The full text content of the attached file. Copy the file content you see in the conversation into this parameter verbatim. Required unless content_base64 is provided."
+        "", description="The full text content of the attached file. Copy the file content you see in the conversation into this parameter verbatim. Use this for text files; for binary files use content_base64 instead."
     )
     content_base64: str = Field(
         "", description="Base64-encoded file content for binary files. For text files, use the content parameter instead."

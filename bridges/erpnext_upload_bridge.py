@@ -8,7 +8,6 @@ required_open_webui_version: 0.6.0
 """
 
 import base64
-import json
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +36,7 @@ class Tools:
         file_name: str = "",
         is_private: bool = True,
         folder: str = "",
-        __files__: list[dict] = [],
+        __files__: list[Any] = [],
         __event_emitter__: Any = None,
     ) -> str:
         """Upload an attached file to ERPNext via the ph-agent-framework server.
@@ -70,23 +69,32 @@ class Tools:
         results: list[str] = []
 
         for i, f in enumerate(__files__):
-            file_info = f.get("file", {})
-            name = file_name or f.get("name", "uploaded_file")
-            file_id = file_info.get("id", "")
-            filename = file_info.get("filename", name)
+            if isinstance(f, str):
+                results.append(f"Warning: Unexpected string in __files__[{i}]: {f[:200]}")
+                continue
+            if not isinstance(f, dict):
+                results.append(f"Warning: Unexpected type in __files__[{i}]: {type(f).__name__}")
+                continue
 
-            # Read file bytes — try filesystem first, fall back to inline content
-            file_bytes: bytes | None = None
-            disk_path = Path(f"/app/backend/data/uploads/{file_id}_{filename}")
-            if disk_path.exists():
-                file_bytes = disk_path.read_bytes()
-            else:
-                content = file_info.get("data", {}).get("content")
-                if content:
-                    file_bytes = content.encode("utf-8")
+            name = file_name or f.get("name", "uploaded_file")
+
+            file_bytes = self._read_file_bytes(f, name)
 
             if file_bytes is None:
-                results.append(f"Warning: Could not read content of '{name}'")
+                # Debug: show available keys so we can fix the structure
+                top_keys = list(f.keys())
+                file_val = f.get("file")
+                if isinstance(file_val, dict):
+                    file_keys = list(file_val.keys())
+                    results.append(
+                        f"Warning: Could not read content of '{name}'. "
+                        f"__files__[{i}] keys: {top_keys}, file keys: {file_keys}"
+                    )
+                else:
+                    results.append(
+                        f"Warning: Could not read content of '{name}'. "
+                        f"__files__[{i}] keys: {top_keys}, file type: {type(file_val).__name__}"
+                    )
                 continue
 
             content_base64 = base64.b64encode(file_bytes).decode("utf-8")
@@ -133,8 +141,8 @@ class Tools:
                     f"Error: Could not connect to ph-agent-framework at {self.valves.api_url}. "
                     "Check that the server is running and the api_url Valve is correct."
                 )
-            except Exception as e:
-                results.append(f"Error uploading '{name}': {e}")
+            except Exception as exc:
+                results.append(f"Error uploading '{name}': {exc}")
 
             if __event_emitter__:
                 await __event_emitter__({
@@ -142,4 +150,61 @@ class Tools:
                     "data": {"description": f"Finished '{name}'", "done": True},
                 })
 
-        return "\n".join(results)
+        return "\n".join(results) if results else "No files were processed."
+
+    def _read_file_bytes(self, f: dict[str, Any], fallback_name: str) -> bytes | None:
+        """Try every known way to extract file bytes from an __files__ entry."""
+
+        # 'file' key can be a nested dict OR a string ID depending on OWUI version
+        file_info = f.get("file")
+        if isinstance(file_info, str):
+            file_id = file_info
+            filename = fallback_name
+            data_content = None
+        elif isinstance(file_info, dict):
+            file_id = file_info.get("id", "")
+            filename = file_info.get("filename", fallback_name)
+            data = file_info.get("data")
+            data_content = data.get("content") if isinstance(data, dict) else None
+        else:
+            file_id = ""
+            filename = fallback_name
+            data_content = None
+
+        # Attempt 1: read from filesystem
+        candidates = []
+        if file_id:
+            candidates.append(Path(f"/app/backend/data/uploads/{file_id}_{filename}"))
+            candidates.append(Path(f"/app/backend/data/uploads/{file_id}"))
+        candidates.append(Path(f"/app/backend/data/uploads/{filename}"))
+
+        for disk_path in candidates:
+            if disk_path.exists():
+                return disk_path.read_bytes()
+
+        # Attempt 2: inline content from file.data.content
+        if data_content:
+            return data_content.encode("utf-8")
+
+        # Attempt 3: top-level 'content' or 'data' key (some versions)
+        top_content = f.get("content")
+        if isinstance(top_content, str) and top_content.strip():
+            return top_content.encode("utf-8")
+
+        top_data = f.get("data")
+        if isinstance(top_data, dict):
+            inner = top_data.get("content")
+            if isinstance(inner, str) and inner.strip():
+                return inner.encode("utf-8")
+
+        # Attempt 4: 'url' key — try to fetch
+        url = f.get("url")
+        if isinstance(url, str) and url.startswith("http"):
+            try:
+                import urllib.request
+                with urllib.request.urlopen(url, timeout=30) as resp:
+                    return resp.read()
+            except Exception:
+                pass
+
+        return None
