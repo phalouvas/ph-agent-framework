@@ -14,7 +14,7 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_search_docs",
-        description="Search and filter documents in ERPNext by doctype. Supports complex filters (AND/OR), field selection, sorting, pagination, and expanding linked documents. Use this to find records matching specific criteria — e.g., all open sales orders over $1000, or customers in a specific territory.",
+        description="Search and filter documents in ERPNext by doctype. Supports complex filters (AND/OR), field selection, sorting, pagination, and expanding linked documents. If you're unfamiliar with the doctype's fields, call erpnext_get_doctype_meta first to learn which fields you can filter and sort on.",
         handler=tools.search_docs_handler,
         request_model=tools.SearchDocsRequest,
         response_model=tools.SearchDocsResponse,
@@ -22,7 +22,7 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_create_doc",
-        description="Create a new document in ERPNext. Use this to create records like customers, sales orders, invoices, tasks, or any other doctype. Provide the doctype and a dictionary of field values. The server will populate default values and auto-generated fields.",
+        description="Create a new document in ERPNext. BEFORE calling this on an unfamiliar doctype, call erpnext_get_doctype_meta to learn which fields are required (reqd=1), what types they expect, and what options they accept. The server will reject missing required fields. Provide the doctype and a dictionary of field values; the server fills in defaults and auto-generated fields.",
         handler=tools.create_doc_handler,
         request_model=tools.CreateDocRequest,
         response_model=tools.CreateDocResponse,
@@ -30,7 +30,7 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_update_doc",
-        description="Update fields on an existing ERPNext document. Use this to modify records — change a delivery date, update a status, correct a typo, or add notes. Only include the fields you want to change; the rest remain unchanged.",
+        description="Update fields on an existing ERPNext document. If you're unsure about valid field names, call erpnext_get_doctype_meta first to see the available fields and their types. Only include the fields you want to change; the rest remain unchanged.",
         handler=tools.update_doc_handler,
         request_model=tools.UpdateDocRequest,
         response_model=tools.UpdateDocResponse,
@@ -46,7 +46,7 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_get_doctype_meta",
-        description="Get the field schema for a specific ERPNext doctype. Returns all fields with their types, labels, options, mandatory flags, and link targets. Use this BEFORE creating or searching documents of an unfamiliar doctype so you know which fields exist and what values they accept.",
+        description="Get the field schema for a specific ERPNext doctype. Returns all fields with their types, labels, options, mandatory flags (reqd=1), and link targets. ALWAYS call this first before creating, updating, or filtering on an unfamiliar doctype — without it you won't know which fields are required, what values they accept, or what you can filter on.",
         handler=tools.get_doctype_meta_handler,
         request_model=tools.GetDoctypeMetaRequest,
         response_model=tools.GetDoctypeMetaResponse,
@@ -54,7 +54,7 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_list_doctypes",
-        description="List available doctypes in the ERPNext system. Supports filtering by name and module/app. Use this to discover what record types are available — e.g., which doctypes belong to the Accounts or HR modules.",
+        description="List available doctypes in the ERPNext system. Supports filtering by name and module/app. This is your discovery tool — use it first when you need to find what record types exist, then inspect a specific one with erpnext_get_doctype_meta before acting on it.",
         handler=tools.list_doctypes_handler,
         request_model=tools.ListDoctypesRequest,
         response_model=tools.ListDoctypesResponse,
