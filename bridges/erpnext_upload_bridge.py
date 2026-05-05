@@ -70,10 +70,7 @@ class Tools:
             headers["X-OpenWebUI-User-Email"] = user_email
         url = f"{self.valves.api_url.rstrip('/')}/tools/erpnext_upload_file"
 
-        results: list[str] = [
-            f"DEBUG __user__ type={type(__user__).__name__} keys={list(__user__.keys()) if isinstance(__user__, dict) else 'N/A'} email_extracted='{user_email}'",
-            f"DEBUG headers sent: X-API-Key={'***' if headers.get('X-API-Key') else 'MISSING'}, X-OpenWebUI-User-Email={headers.get('X-OpenWebUI-User-Email', 'NOT SET')}",
-        ]
+        results: list[str] = []
 
         for i, f in enumerate(__files__):
             if isinstance(f, str):

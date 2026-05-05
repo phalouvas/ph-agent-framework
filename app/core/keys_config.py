@@ -83,22 +83,10 @@ def lookup_tenant(key_id: str, user_email: str | None = None) -> ErpNextTenant |
     """
     for key_info in _keys_index.values():
         if key_info["id"] == key_id:
-            logger.warning(
-                "DEBUG lookup_tenant: key_id=%s user_email=%s, key_info users=%s default_tenant=%s",
-                key_id, user_email, list(key_info.get("users", {}).keys()), key_info["tenant"],
-            )
             if user_email:
                 email = user_email.strip().lower()
                 if email and email in key_info.get("users", {}):
-                    logger.warning(
-                        "DEBUG lookup_tenant: MATCHED per-user tenant for email=%s", email
-                    )
                     return key_info["users"][email]
-                else:
-                    logger.warning(
-                        "DEBUG lookup_tenant: NO MATCH for email=%s in users=%s, using default",
-                        email, list(key_info.get("users", {}).keys()),
-                    )
             return key_info["tenant"]
     return None
 

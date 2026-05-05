@@ -35,9 +35,4 @@ async def validate_api_key(request: Request) -> dict:
         raise AuthenticationError("Invalid API key")
 
     user_email = request.headers.get("X-OpenWebUI-User-Email")
-    logger.warning(
-        "DEBUG security.py: X-OpenWebUI-User-Email header=%s, all headers=%s",
-        user_email,
-        {k: v for k, v in request.headers.items() if k.lower().startswith("x-")},
-    )
     return {**key_info, "user_email": user_email}
