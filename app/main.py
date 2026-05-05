@@ -76,7 +76,7 @@ def create_app(
 
     app = FastAPI(
         title="PH Agent Framework",
-        version="0.1.0",
+        version="1.0.0",
         description="Tool server backend for Open WebUI. Provides pluggable tool modules including ERPNext integration with multi-tenant routing.",
         lifespan=lifespan,
     )
