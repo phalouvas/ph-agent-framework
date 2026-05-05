@@ -216,18 +216,24 @@ class ErpNextClient:
         filters: list | None = None,
         or_filters: list | None = None,
     ) -> int:
-        """Return the total number of documents matching the given filters."""
+        """Return the total number of documents matching the given filters.
+
+        Uses frappe.desk.reportview.get_count, the standard whitelisted
+        Frappe method for counting documents server-side.
+        """
+        all_filters = list(filters) if filters else []
         args: dict[str, Any] = {"doctype": doctype}
-        if filters:
-            args["filters"] = filters
-        if or_filters:
-            args["or_filters"] = or_filters
-        result = await self.run_method("frappe.client.count", args=args)
-        if isinstance(result, int):
-            return result
-        if isinstance(result, dict):
-            return result.get("value", result.get("message", 0))
-        return 0
+        if all_filters:
+            args["filters"] = json.dumps(all_filters)
+
+        count_result = await self.run_method(
+            "frappe.desk.reportview.get_count", args=args
+        )
+        if isinstance(count_result, int):
+            return count_result
+        if isinstance(count_result, dict):
+            return count_result.get("message", count_result.get("value", 0))
+        return int(count_result) if count_result is not None else 0
 
     # ── Document lifecycle ────────────────────────────────────────────
 

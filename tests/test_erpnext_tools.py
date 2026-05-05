@@ -635,7 +635,9 @@ class TestErpNextClient:
 
         call_args = mock_req.call_args
         assert call_args.args[0] == "POST"
-        assert "/api/method/frappe.client.count" in call_args.args[1]
+        assert "/api/method/frappe.desk.reportview.get_count" in call_args.args[1]
+        assert call_args.kwargs["json"]["doctype"] == "Sales Invoice"
+        assert call_args.kwargs["json"]["filters"] == '[["status", "=", "Open"]]'
         assert result == 42
 
     @pytest.mark.asyncio
