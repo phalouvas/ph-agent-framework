@@ -1,7 +1,9 @@
+import asyncio
 import base64
 import io
 import json
 import logging
+import time
 from typing import Any
 
 import httpx
@@ -12,12 +14,100 @@ logger = logging.getLogger(__name__)
 
 
 class ErpNextClient:
+    """Async HTTP client for the ERPNext/Frappe REST API.
+
+    Uses a class-level connection pool for HTTP keep-alive, DNS caching,
+    and TLS session reuse across all client instances and requests.
+    """
+
+    _pool: httpx.AsyncClient | None = None
+    _pool_lock: asyncio.Lock | None = None
+    _meta_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+    _meta_cache_ttl: float = 300.0
+    _rate_limiter: asyncio.Semaphore | None = None
+    _max_concurrent: int = 5
+
     def __init__(self, url: str, api_key: str, api_secret: str, timeout: float = 30.0):
         self.url = url.rstrip("/")
         self.auth_header = f"token {api_key}:{api_secret}"
         self.api_key = api_key
         self.api_secret = api_secret
         self.timeout = timeout
+
+    # ── Pool management ──────────────────────────────────────────────
+
+    @classmethod
+    def _get_pool(cls) -> httpx.AsyncClient:
+        if cls._pool is None:
+            cls._pool = httpx.AsyncClient(
+                timeout=httpx.Timeout(30.0),
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            )
+        return cls._pool
+
+    @classmethod
+    async def close_pool(cls) -> None:
+        if cls._pool is not None:
+            await cls._pool.aclose()
+            cls._pool = None
+
+    # ── Rate limiting ────────────────────────────────────────────────
+
+    @classmethod
+    def _get_rate_limiter(cls) -> asyncio.Semaphore:
+        if cls._rate_limiter is None:
+            cls._rate_limiter = asyncio.Semaphore(cls._max_concurrent)
+        return cls._rate_limiter
+
+    # ── Metadata cache ───────────────────────────────────────────────
+
+    @classmethod
+    def invalidate_meta_cache(cls, doctype: str | None = None) -> None:
+        if doctype:
+            cls._meta_cache.pop(doctype, None)
+        else:
+            cls._meta_cache.clear()
+
+    # ── Error parsing ────────────────────────────────────────────────
+
+    @staticmethod
+    def _parse_error_response(response: httpx.Response | None) -> str:
+        """Extract a clean, actionable error message from an ERPNext error response."""
+        if response is None:
+            return "Unknown ERPNext error"
+
+        try:
+            body = response.json()
+        except (ValueError, json.JSONDecodeError):
+            return f"ERPNext returned {response.status_code}: {response.text[:200]}"
+
+        exc_type = body.get("exc_type", "")
+        exception_text = body.get("exception", "")
+
+        if exc_type and exception_text:
+            lines = exception_text.split("\n")
+            clean_lines = [
+                l for l in lines
+                if l.strip() and not l.startswith("Traceback") and not l.startswith("  File")
+            ]
+            message = clean_lines[-1] if clean_lines else exception_text
+            return f"ERPNext {exc_type}: {message[:300]}"
+
+        if "message" in body:
+            return f"ERPNext error: {str(body['message'])[:300]}"
+
+        # ValidationError often has field-level messages
+        if "_server_messages" in body:
+            try:
+                msgs = json.loads(body["_server_messages"])
+                cleaned = [json.loads(m).get("message", m) for m in msgs]
+                return "ERPNext validation: " + "; ".join(cleaned)[:300]
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        return f"ERPNext returned {response.status_code}: {response.text[:300]}"
+
+    # ── HTTP properties ──────────────────────────────────────────────
 
     @property
     def _headers(self) -> dict:
@@ -26,26 +116,34 @@ class ErpNextClient:
             "Accept": "application/json",
         }
 
+    # ── Core request ─────────────────────────────────────────────────
+
     async def _request(self, method: str, path: str, **kwargs) -> dict[str, Any]:
         url = f"{self.url}{path}"
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+        limiter = self._get_rate_limiter()
+        async with limiter:
+            try:
+                client = self._get_pool()
                 response = await client.request(
                     method, url, headers=self._headers, **kwargs
                 )
                 response.raise_for_status()
                 return response.json()
-        except httpx.TimeoutException:
-            raise ErpNextConnectionError(f"Timeout connecting to ERPNext at {self.url}")
-        except httpx.ConnectError:
-            raise ErpNextConnectionError(
-                f"Could not connect to ERPNext at {self.url}"
-            )
-        except httpx.HTTPStatusError as e:
-            detail = e.response.text[:500] if e.response else str(e)
-            raise ErpNextConnectionError(
-                f"ERPNext returned {e.response.status_code}: {detail}"
-            )
+            except httpx.TimeoutException:
+                raise ErpNextConnectionError(
+                    f"ERPNext at {self.url} did not respond within {self.timeout}s. "
+                    "The server may be overloaded or the network is slow. Try again later."
+                )
+            except httpx.ConnectError:
+                raise ErpNextConnectionError(
+                    f"Cannot reach ERPNext at {self.url}. "
+                    "Verify the ERPNext server is running and the URL is correct in the tenant configuration."
+                )
+            except httpx.HTTPStatusError as e:
+                detail = self._parse_error_response(e.response)
+                raise ErpNextConnectionError(detail)
+
+    # ── Document CRUD ────────────────────────────────────────────────
 
     async def get_doc(
         self,
@@ -110,9 +208,77 @@ class ErpNextClient:
         result = await self._request("DELETE", f"/api/resource/{doctype}/{name}")
         return result
 
+    # ── Count documents ──────────────────────────────────────────────
+
+    async def count_docs(
+        self,
+        doctype: str,
+        filters: list | None = None,
+        or_filters: list | None = None,
+    ) -> int:
+        """Return the total number of documents matching the given filters.
+
+        Uses frappe.desk.reportview.get_count, the standard whitelisted
+        Frappe method for counting documents server-side.
+        """
+        all_filters = list(filters) if filters else []
+        args: dict[str, Any] = {"doctype": doctype}
+        if all_filters:
+            args["filters"] = json.dumps(all_filters)
+
+        count_result = await self.run_method(
+            "frappe.desk.reportview.get_count", args=args
+        )
+        if isinstance(count_result, int):
+            return count_result
+        if isinstance(count_result, dict):
+            return count_result.get("message", count_result.get("value", 0))
+        return int(count_result) if count_result is not None else 0
+
+    # ── Document lifecycle ────────────────────────────────────────────
+
+    async def submit_doc(self, doctype: str, name: str) -> dict[str, Any]:
+        result = await self.run_method(
+            "frappe.client.submit",
+            args={"doctype": doctype, "name": name},
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def cancel_doc(self, doctype: str, name: str) -> dict[str, Any]:
+        result = await self.run_method(
+            "frappe.client.cancel",
+            args={"doctype": doctype, "name": name},
+        )
+        return result if isinstance(result, dict) else {}
+
+    async def amend_doc(
+        self, doctype: str, name: str, data: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        # Get the cancelled doc to use as base for amendment
+        doc = await self.get_doc(doctype, name)
+        doc.pop("name", None)
+        doc.pop("owner", None)
+        doc.pop("creation", None)
+        doc.pop("modified", None)
+        doc.pop("modified_by", None)
+        doc["amended_from"] = name
+        doc["docstatus"] = 0
+        if data:
+            doc.update(data)
+        return await self.create_doc(doctype, doc)
+
+    # ── Doctype metadata ─────────────────────────────────────────────
+
     async def get_doctype_meta(self, doctype: str) -> dict[str, Any]:
+        now = time.time()
+        cached = self._meta_cache.get(doctype)
+        if cached and (now - cached[0]) < self._meta_cache_ttl:
+            return cached[1]
+
         data = await self._request("GET", f"/api/resource/DocType/{doctype}")
-        return data.get("data", data)
+        result = data.get("data", data)
+        self._meta_cache[doctype] = (now, result)
+        return result
 
     async def list_doctypes(
         self,
@@ -125,11 +291,16 @@ class ErpNextClient:
             filters.append(["name", "like", f"%{query}%"])
         if module:
             filters.append(["module", "=", module])
-        params: dict[str, Any] = {"limit_page_length": limit, "fields": json.dumps(["name", "module", "issingle", "istable"])}
+        params: dict[str, Any] = {
+            "limit_page_length": limit,
+            "fields": json.dumps(["name", "module", "issingle", "istable"]),
+        }
         if filters:
             params["filters"] = json.dumps(filters)
         data = await self._request("GET", "/api/resource/DocType", params=params)
         return data.get("data", data)
+
+    # ── File operations ──────────────────────────────────────────────
 
     async def upload_file(
         self,
@@ -162,6 +333,50 @@ class ErpNextClient:
         )
         return result.get("message", result)
 
+    async def get_file(self, file_url: str) -> dict[str, Any]:
+        """Get file metadata from ERPNext by file URL."""
+        filters = [["file_url", "=", file_url]]
+        params: dict[str, Any] = {
+            "filters": json.dumps(filters),
+            "fields": json.dumps([
+                "name", "file_name", "file_url", "file_size",
+                "content_hash", "attached_to_doctype", "attached_to_name",
+                "is_private",
+            ]),
+            "limit_page_length": 1,
+        }
+        result = await self._request("GET", "/api/resource/File", params=params)
+        data = result.get("data", result)
+        if isinstance(data, list) and data:
+            return data[0]
+        return data if isinstance(data, dict) else {}
+
+    async def list_files(
+        self,
+        doctype: str | None = None,
+        docname: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """List files, optionally filtered by attached doctype/document."""
+        filters: list = []
+        if doctype:
+            filters.append(["attached_to_doctype", "=", doctype])
+        if docname:
+            filters.append(["attached_to_name", "=", docname])
+        params: dict[str, Any] = {
+            "limit_page_length": limit,
+            "fields": json.dumps([
+                "name", "file_name", "file_url", "file_size",
+                "content_hash", "is_private",
+            ]),
+        }
+        if filters:
+            params["filters"] = json.dumps(filters)
+        result = await self._request("GET", "/api/resource/File", params=params)
+        return result.get("data", result)
+
+    # ── User / System ────────────────────────────────────────────────
+
     async def get_current_user(self) -> dict[str, Any]:
         result = await self._request(
             "GET", "/api/method/frappe.auth.get_logged_user"
@@ -173,6 +388,26 @@ class ErpNextClient:
             "POST", "/api/method/frappe.utils.change_log.get_versions"
         )
         return result.get("message", result)
+
+    async def ping(self) -> dict[str, Any]:
+        """Quick health check — returns latency and availability."""
+        start = time.monotonic()
+        try:
+            result = await self._request("GET", "/api/method/frappe.ping")
+            elapsed = time.monotonic() - start
+            return {
+                "available": True,
+                "latency_ms": round(elapsed * 1000, 1),
+                "message": result.get("message", "pong") if isinstance(result, dict) else str(result),
+            }
+        except ErpNextConnectionError:
+            elapsed = time.monotonic() - start
+            return {
+                "available": False,
+                "latency_ms": round(elapsed * 1000, 1),
+            }
+
+    # ── Reports ──────────────────────────────────────────────────────
 
     async def run_report(
         self,
@@ -209,6 +444,8 @@ class ErpNextClient:
         }
         data = await self._request("GET", "/api/resource/Report", params=params)
         return data.get("data", data)
+
+    # ── Generic method call ──────────────────────────────────────────
 
     async def run_method(
         self,
