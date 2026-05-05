@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ph-agent-framework"
-version = "0.1.0"
+version = "1.0.0"
 description = "Production-ready Python backend tool server for Open WebUI, built with Microsoft Agent Framework patterns"
 readme = "README.md"
 license = {text = "MIT"}

@@ -15,6 +15,8 @@ class ErpNextClient:
     def __init__(self, url: str, api_key: str, api_secret: str, timeout: float = 30.0):
         self.url = url.rstrip("/")
         self.auth_header = f"token {api_key}:{api_secret}"
+        self.api_key = api_key
+        self.api_secret = api_secret
         self.timeout = timeout
 
     @property
@@ -146,7 +148,9 @@ class ErpNextClient:
         else:
             raise ValueError("Either content_base64 or content must be provided")
         files = {"file": (file_name, io.BytesIO(file_bytes), "application/octet-stream")}
-        data_fields: dict[str, Any] = {"is_private": int(is_private)}
+        data_fields: dict[str, Any] = {
+            "is_private": int(is_private),
+        }
         if doctype:
             data_fields["doctype"] = doctype
         if docname:

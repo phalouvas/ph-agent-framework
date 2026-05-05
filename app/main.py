@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.health import router as health_router
@@ -75,7 +76,7 @@ def create_app(
 
     app = FastAPI(
         title="PH Agent Framework",
-        version="0.1.0",
+        version="1.0.0",
         description="Tool server backend for Open WebUI. Provides pluggable tool modules including ERPNext integration with multi-tenant routing.",
         lifespan=lifespan,
     )
@@ -92,6 +93,10 @@ def create_app(
 
     app.include_router(health_router)
     register_error_handlers(app)
+
+    bridges_dir = Path(__file__).parent.parent / "bridges"
+    if bridges_dir.is_dir():
+        app.mount("/bridges", StaticFiles(directory=str(bridges_dir)), name="bridges")
 
     return app
 
