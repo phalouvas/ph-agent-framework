@@ -142,6 +142,7 @@ def test_erpnext_upload_file_base64(client, auth_headers):
         "/tools/erpnext_upload_file",
         json={
             "file_name": "test.pdf",
+            "content": "test content from file",
             "content_base64": "dGVzdCBjb250ZW50",  # "test content" in base64
             "doctype": "Sales Invoice",
             "docname": "SINV-24-00001",
@@ -153,6 +154,23 @@ def test_erpnext_upload_file_base64(client, auth_headers):
     data = response.json()
     assert data["success"] is False
     assert "Could not connect to ERPNext" in data["error"]
+
+
+def test_erpnext_upload_file_empty_content(client, auth_headers):
+    """Validation should reject empty content when content_base64 is also empty."""
+    response = client.post(
+        "/tools/erpnext_upload_file",
+        json={
+            "file_name": "document.pdf",
+            "content": "",
+            "doctype": "Customer",
+            "docname": "Test Corp",
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+    data = response.json()
+    assert "content" in data["message"] or "content" in str(data)
 
 
 def test_erpnext_upload_file_text(client, auth_headers):

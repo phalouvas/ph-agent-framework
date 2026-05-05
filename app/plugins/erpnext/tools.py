@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.plugins.erpnext.client import ErpNextClient
 from app.schemas.tool_context import ToolContext
@@ -262,13 +262,13 @@ async def list_doctypes_handler(request: ListDoctypesRequest, context: ToolConte
 
 class UploadFileRequest(BaseModel):
     file_name: str = Field(
-        ..., description="Name of the file including extension, e.g., 'invoice.pdf'"
+        ..., description="Name of the attached file including its extension. Use the exact filename the user shared, e.g., 'document.pdf', 'report.csv', 'notes.txt'"
     )
     content: str = Field(
-        "", description="Plain text content of the file. Use this when a user attaches a text file, CSV, or when you can read the file's text directly. The server will encode it as UTF-8."
+        ..., description="The full text content of the attached file. Copy the file content you see in the conversation into this parameter verbatim. Required unless content_base64 is provided."
     )
     content_base64: str = Field(
-        "", description="Base64-encoded file content. Use this for binary files (PDFs, images). For text files, prefer the content parameter."
+        "", description="Base64-encoded file content for binary files. For text files, use the content parameter instead."
     )
     doctype: str | None = Field(
         None, description="Optional doctype to attach the file to, e.g., 'Sales Invoice'"
@@ -282,6 +282,12 @@ class UploadFileRequest(BaseModel):
     folder: str | None = Field(
         None, description="Target folder in ERPNext, e.g., 'Home/Attachments'"
     )
+
+    @model_validator(mode="after")
+    def check_content_not_empty(self):
+        if not self.content.strip() and not self.content_base64.strip():
+            raise ValueError("Either 'content' or 'content_base64' must contain file data — both are empty. Copy the file content from the conversation into 'content'.")
+        return self
 
 
 class UploadFileResponse(BaseModel):
