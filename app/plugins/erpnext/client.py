@@ -296,6 +296,8 @@ class ErpNextClient:
         args: dict[str, Any] = {"doctype": doctype}
         if all_filters:
             args["filters"] = json.dumps(all_filters)
+        if or_filters:
+            args["or_filters"] = json.dumps(or_filters)
 
         count_result = await self.run_method(
             "frappe.desk.reportview.get_count", args=args

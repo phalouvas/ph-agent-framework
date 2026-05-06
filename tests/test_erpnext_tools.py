@@ -593,6 +593,7 @@ def test_erpnext_get_fieldset_no_auto_fill_hints_for_sales_order_without_hints_k
 
 
 
+def test_erpnext_search_docs_with_total_count(client, auth_headers):
     """Search with include_total_count should have the total_count field in the error response shape."""
     response = client.post(
         "/tools/erpnext_search_docs",
