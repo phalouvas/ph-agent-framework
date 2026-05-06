@@ -94,6 +94,51 @@ For a user-focused guide to available tools and practical prompting examples, se
 
 - [documentation/openwebui-tools-guide.md](documentation/openwebui-tools-guide.md)
 
+## ERPNext write validation model
+
+ERPNext write tools use a hybrid model:
+
+- Curated fieldsets (`erpnext_get_fieldset`) are advisory accelerators for common doctypes.
+- Live ERPNext metadata (`erpnext_get_doctype_meta`) is authoritative for write safety.
+- `erpnext_create_doc` and `erpnext_update_doc` run live preflight validation by default for common transactional doctypes.
+
+Write requests support:
+
+- `validation_mode="auto"` (default): validate common transactional doctypes with live metadata
+- `validation_mode="live"`: force live validation for any doctype
+- `validation_mode="off"`: skip preflight validation (use only when risk is accepted)
+
+After any write, do not assume business success from the write response alone. Always verify persisted state with `erpnext_get_doc` or `erpnext_search_docs`.
+
+## Manual curated fieldset refresh
+
+Use the manual refresh workflow to compare local curated fieldsets with upstream `frappe/erpnext` and `frappe/frappe` doctype JSON definitions.
+
+Run either command:
+
+```bash
+erpnext-refresh-fieldsets
+# or
+python scripts/refresh_erpnext_fieldsets.py
+```
+
+Optional output location:
+
+```bash
+erpnext-refresh-fieldsets --output-dir scripts/artifacts
+```
+
+Artifacts:
+
+- `scripts/artifacts/upstream_doctype_snapshots.json` (upstream metadata snapshot)
+- `scripts/artifacts/fieldset_refresh_report.json` (reconciliation report)
+
+Review checklist:
+
+1. Inspect `missing_required` fields in the report and decide whether to add curated hints.
+2. Check `stale_required` and `unknown_optional` for drift or retired fields.
+3. For any changes, validate against tenant metadata with `erpnext_get_doctype_meta(refresh_cache=true)` before merging.
+
 ## File uploads to ERPNext
 
 When a user attaches a file in chat and asks to upload it to ERPNext, Open WebUI's external tool servers don't receive file data automatically. To bridge this gap, a lightweight importable tool is included.

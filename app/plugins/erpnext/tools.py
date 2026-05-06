@@ -1,9 +1,131 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 from app.plugins.erpnext.client import ErpNextClient
 from app.schemas.tool_context import ToolContext
+
+
+WRITE_VALIDATION_DOCTYPES: set[str] = {
+    "Sales Order",
+    "Sales Invoice",
+    "Purchase Order",
+    "Purchase Invoice",
+    "Payment Entry",
+    "Journal Entry",
+    "Quotation",
+    "Material Request",
+    "Purchase Receipt",
+    "Stock Entry",
+    "Stock Reconciliation",
+    "Work Order",
+}
+
+SYSTEM_FIELDS: set[str] = {
+    "name",
+    "owner",
+    "creation",
+    "modified",
+    "modified_by",
+    "docstatus",
+    "idx",
+    "doctype",
+}
+
+
+class ValidationIssue(BaseModel):
+    field: str = Field(..., description="Field name that failed validation")
+    reason: str = Field(..., description="Human-readable reason for the validation failure")
+
+
+class WriteValidationResult(BaseModel):
+    applied: bool = Field(False, description="Whether live-schema validation was executed")
+    source: str = Field(
+        "none",
+        description="Validation source. 'live_meta' means ERPNext doctype metadata was used; 'none' means validation was skipped.",
+    )
+    mode: str = Field(
+        "auto",
+        description="Validation mode used by the handler: 'auto', 'live', or 'off'.",
+    )
+    missing_required_fields: list[str] = Field(
+        default_factory=list,
+        description="Required fields that were missing or empty in the payload.",
+    )
+    unknown_fields: list[str] = Field(
+        default_factory=list,
+        description="Payload keys not present in live doctype metadata.",
+    )
+    issues: list[ValidationIssue] = Field(
+        default_factory=list,
+        description="Detailed validation issues for fields with invalid shape or values.",
+    )
+
+
+def _should_run_live_validation(doctype: str, mode: Literal["auto", "live", "off"]) -> bool:
+    if mode == "off":
+        return False
+    if mode == "live":
+        return True
+    return doctype in WRITE_VALIDATION_DOCTYPES
+
+
+def _is_missing_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip() == ""
+    if isinstance(value, (list, dict)):
+        return len(value) == 0
+    return False
+
+
+def _collect_field_definitions(meta: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    fields = meta.get("fields", [])
+    out: dict[str, dict[str, Any]] = {}
+    for field in fields:
+        if isinstance(field, dict) and field.get("fieldname"):
+            out[str(field["fieldname"])] = field
+    return out
+
+
+def _validate_payload_against_meta(
+    *,
+    doctype: str,
+    payload: dict[str, Any],
+    meta: dict[str, Any],
+    operation: Literal["create", "update"],
+    mode: Literal["auto", "live", "off"],
+) -> WriteValidationResult:
+    result = WriteValidationResult(applied=True, source="live_meta", mode=mode)
+    field_defs = _collect_field_definitions(meta)
+    known_fields = set(field_defs.keys()) | SYSTEM_FIELDS
+
+    for key, value in payload.items():
+        if key not in known_fields:
+            result.unknown_fields.append(key)
+            continue
+        definition = field_defs.get(key)
+        if definition is None:
+            continue
+        fieldtype = str(definition.get("fieldtype") or "")
+        if fieldtype == "Table" and not isinstance(value, list):
+            result.issues.append(ValidationIssue(field=key, reason="Expected an array for child table field"))
+
+    if operation == "create":
+        for name, definition in field_defs.items():
+            if not definition.get("reqd"):
+                continue
+            if definition.get("read_only"):
+                continue
+            if definition.get("hidden"):
+                continue
+            if definition.get("default"):
+                continue
+            if _is_missing_value(payload.get(name)):
+                result.missing_required_fields.append(name)
+
+    return result
 
 
 # ── Get Document ──────────────────────────────────────────────────────
@@ -140,11 +262,32 @@ class CreateDocRequest(BaseModel):
     data: dict[str, Any] = Field(
         ..., description="Fields and values for the new document, e.g., {'customer': 'Acme Corp', 'total': 1500}"
     )
+    validation_mode: Literal["auto", "live", "off"] = Field(
+        "auto",
+        description="Validation behavior before write. 'auto' validates common transactional doctypes using live metadata, 'live' always validates, and 'off' skips preflight validation.",
+    )
+    refresh_meta: bool = Field(
+        False,
+        description="If true, bypass metadata cache and fetch fresh doctype metadata for validation.",
+    )
 
 
 class CreateDocResponse(BaseModel):
+    success: bool = Field(False, description="True only when the create operation completed without validation or API errors")
     doc: dict[str, Any] | None = Field(
         None, description="The created document with all server-populated fields"
+    )
+    validation: WriteValidationResult | None = Field(
+        None,
+        description="Structured validation result from live schema checks before writing.",
+    )
+    verification_required: bool = Field(
+        True,
+        description="Always true for write tools. Read back the document via erpnext_get_doc or erpnext_search_docs before claiming business success.",
+    )
+    verification_hint: str = Field(
+        "Verify the write result with erpnext_get_doc or erpnext_search_docs before making success claims.",
+        description="Guidance for post-write verification.",
     )
     error: str | None = Field(None, description="Error message if creation failed")
 
@@ -153,11 +296,41 @@ async def create_doc_handler(request: CreateDocRequest, context: ToolContext) ->
     if context.tenant is None:
         return CreateDocResponse(error="No ERPNext tenant configured for this API key")
     client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
+
+    validation_result: WriteValidationResult | None = None
+    if _should_run_live_validation(request.doctype, request.validation_mode):
+        try:
+            meta = await client.get_doctype_meta(request.doctype, force_refresh=request.refresh_meta)
+        except Exception as e:
+            return CreateDocResponse(
+                success=False,
+                error=f"Failed to fetch live metadata for validation: {e}",
+                validation=WriteValidationResult(applied=False, source="none", mode=request.validation_mode),
+            )
+
+        validation_result = _validate_payload_against_meta(
+            doctype=request.doctype,
+            payload=request.data,
+            meta=meta,
+            operation="create",
+            mode=request.validation_mode,
+        )
+        if (
+            validation_result.missing_required_fields
+            or validation_result.unknown_fields
+            or validation_result.issues
+        ):
+            return CreateDocResponse(
+                success=False,
+                validation=validation_result,
+                error="Validation failed against live ERPNext metadata",
+            )
+
     try:
         doc = await client.create_doc(request.doctype, request.data)
-        return CreateDocResponse(doc=doc)
+        return CreateDocResponse(success=True, doc=doc, validation=validation_result)
     except Exception as e:
-        return CreateDocResponse(error=str(e))
+        return CreateDocResponse(success=False, error=str(e), validation=validation_result)
 
 
 # ── Update Document ────────────────────────────────────────────────────
@@ -172,11 +345,32 @@ class UpdateDocRequest(BaseModel):
     data: dict[str, Any] = Field(
         ..., description="Fields to update, e.g., {'delivery_date': '2025-03-15', 'status': 'Completed'}"
     )
+    validation_mode: Literal["auto", "live", "off"] = Field(
+        "auto",
+        description="Validation behavior before write. 'auto' validates common transactional doctypes using live metadata, 'live' always validates, and 'off' skips preflight validation.",
+    )
+    refresh_meta: bool = Field(
+        False,
+        description="If true, bypass metadata cache and fetch fresh doctype metadata for validation.",
+    )
 
 
 class UpdateDocResponse(BaseModel):
+    success: bool = Field(False, description="True only when the update operation completed without validation or API errors")
     doc: dict[str, Any] | None = Field(
         None, description="The updated document"
+    )
+    validation: WriteValidationResult | None = Field(
+        None,
+        description="Structured validation result from live schema checks before writing.",
+    )
+    verification_required: bool = Field(
+        True,
+        description="Always true for write tools. Read back the document via erpnext_get_doc or erpnext_search_docs before claiming business success.",
+    )
+    verification_hint: str = Field(
+        "Verify the write result with erpnext_get_doc or erpnext_search_docs before making success claims.",
+        description="Guidance for post-write verification.",
     )
     error: str | None = Field(None, description="Error message if the update failed")
 
@@ -185,11 +379,37 @@ async def update_doc_handler(request: UpdateDocRequest, context: ToolContext) ->
     if context.tenant is None:
         return UpdateDocResponse(error="No ERPNext tenant configured for this API key")
     client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
+
+    validation_result: WriteValidationResult | None = None
+    if _should_run_live_validation(request.doctype, request.validation_mode):
+        try:
+            meta = await client.get_doctype_meta(request.doctype, force_refresh=request.refresh_meta)
+        except Exception as e:
+            return UpdateDocResponse(
+                success=False,
+                error=f"Failed to fetch live metadata for validation: {e}",
+                validation=WriteValidationResult(applied=False, source="none", mode=request.validation_mode),
+            )
+
+        validation_result = _validate_payload_against_meta(
+            doctype=request.doctype,
+            payload=request.data,
+            meta=meta,
+            operation="update",
+            mode=request.validation_mode,
+        )
+        if validation_result.unknown_fields or validation_result.issues:
+            return UpdateDocResponse(
+                success=False,
+                validation=validation_result,
+                error="Validation failed against live ERPNext metadata",
+            )
+
     try:
         doc = await client.update_doc(request.doctype, request.docname, request.data)
-        return UpdateDocResponse(doc=doc)
+        return UpdateDocResponse(success=True, doc=doc, validation=validation_result)
     except Exception as e:
-        return UpdateDocResponse(error=str(e))
+        return UpdateDocResponse(success=False, error=str(e), validation=validation_result)
 
 
 # ── Delete Document ────────────────────────────────────────────────────
@@ -310,6 +530,10 @@ class GetDoctypeMetaRequest(BaseModel):
     doctype: str = Field(
         ..., description="ERPNext doctype name to get field schema for, e.g., 'Sales Invoice', 'Item'"
     )
+    refresh_cache: bool = Field(
+        False,
+        description="If true, invalidate any cached metadata for this tenant and fetch fresh doctype metadata from ERPNext.",
+    )
 
 
 class GetDoctypeMetaResponse(BaseModel):
@@ -324,7 +548,9 @@ async def get_doctype_meta_handler(request: GetDoctypeMetaRequest, context: Tool
         return GetDoctypeMetaResponse(error="No ERPNext tenant configured for this API key")
     client = ErpNextClient(context.tenant.url, context.tenant.api_key, context.tenant.api_secret)
     try:
-        meta = await client.get_doctype_meta(request.doctype)
+        if request.refresh_cache:
+            ErpNextClient.invalidate_meta_cache_for_tenant(context.tenant.url, request.doctype)
+        meta = await client.get_doctype_meta(request.doctype, force_refresh=request.refresh_cache)
         return GetDoctypeMetaResponse(meta=meta)
     except Exception as e:
         return GetDoctypeMetaResponse(error=str(e))

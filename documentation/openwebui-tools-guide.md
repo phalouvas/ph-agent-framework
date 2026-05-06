@@ -26,6 +26,12 @@ You usually do not call the tool manually. Your job is to provide a clear intent
 - For reports, include report name and date/company filters.
 - For updates, state exactly which fields should change.
 
+## Write safety rule
+
+- Treat `erpnext_get_fieldset` as guidance for common patterns.
+- Treat `erpnext_get_doctype_meta` as authoritative when writing data.
+- After `erpnext_create_doc` or `erpnext_update_doc`, always ask for a verification read (`erpnext_get_doc` or `erpnext_search_docs`) before declaring success.
+
 ## Available tools
 
 ### System

@@ -26,6 +26,9 @@ dev = [
     "httpx>=0.28.0",
 ]
 
+[project.scripts]
+erpnext-refresh-fieldsets = "app.plugins.erpnext.fieldset_refresh:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
 

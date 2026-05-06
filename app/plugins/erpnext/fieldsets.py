@@ -146,6 +146,202 @@ FIELDSETS: dict[str, dict] = {
             {"field": "tax_id", "type": "Data", "description": "Tax ID."},
         ],
     },
+    "Purchase Invoice": {
+        "description": "Supplier billing document. Advisory template only; live doctype metadata remains authoritative for write safety.",
+        "naming": "PINV-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "supplier", "type": "Link/Supplier", "description": "Supplier being billed."},
+            {"field": "company", "type": "Link/Company", "description": "Your company."},
+            {"field": "items", "type": "Table/Purchase Invoice Item", "description": "Line items for the invoice."},
+        ],
+        "optional": [
+            {"field": "posting_date", "type": "Date", "description": "Accounting date. Defaults to today."},
+            {"field": "due_date", "type": "Date", "description": "Supplier payment due date."},
+            {"field": "bill_no", "type": "Data", "description": "Supplier invoice number."},
+            {"field": "update_stock", "type": "Check", "description": "Set to 1 when invoice should also update stock."},
+        ],
+        "child_tables": {
+            "items": {
+                "fields": [
+                    {"field": "item_code", "type": "Link/Item", "required": True, "description": "Item identifier."},
+                    {"field": "qty", "type": "Float", "required": True, "description": "Quantity."},
+                    {"field": "rate", "type": "Currency", "required": True, "description": "Unit purchase rate."},
+                    {"field": "expense_account", "type": "Link/Account", "required": False, "description": "Expense account, often defaulted from item/company."},
+                ]
+            }
+        },
+    },
+    "Payment Entry": {
+        "description": "Represents money received or paid. Tenant setups vary; treat optional fields as non-authoritative hints.",
+        "naming": "ACC-PAY-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "payment_type", "type": "Select", "description": "Receive or Pay."},
+            {"field": "party_type", "type": "Select", "description": "Customer or Supplier."},
+            {"field": "party", "type": "Dynamic Link", "description": "Party value matching party_type."},
+            {"field": "paid_amount", "type": "Currency", "description": "Amount paid or received."},
+        ],
+        "optional": [
+            {"field": "posting_date", "type": "Date", "description": "Transaction posting date."},
+            {"field": "paid_from", "type": "Link/Account", "description": "Source account."},
+            {"field": "paid_to", "type": "Link/Account", "description": "Destination account."},
+            {"field": "references", "type": "Table/Payment Entry Reference", "description": "Allocate payment to invoices/orders."},
+        ],
+    },
+    "Journal Entry": {
+        "description": "Manual accounting entry. Child rows drive debits/credits and must balance.",
+        "naming": "ACC-JV-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "voucher_type", "type": "Select", "description": "Entry type, e.g. Journal Entry, Bank Entry."},
+            {"field": "posting_date", "type": "Date", "description": "Accounting date."},
+            {"field": "accounts", "type": "Table/Journal Entry Account", "description": "Debit/credit lines; totals must balance."},
+            {"field": "company", "type": "Link/Company", "description": "Company ledger context."},
+        ],
+        "optional": [
+            {"field": "user_remark", "type": "Data", "description": "Narrative for the entry."},
+            {"field": "cheque_no", "type": "Data", "description": "Reference instrument number."},
+        ],
+    },
+    "Purchase Receipt": {
+        "description": "Goods receipt from supplier. Usually linked to Purchase Order.",
+        "naming": "MAT-PRE-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "supplier", "type": "Link/Supplier", "description": "Supplier delivering goods."},
+            {"field": "company", "type": "Link/Company", "description": "Receiving company."},
+            {"field": "posting_date", "type": "Date", "description": "Receipt date."},
+            {"field": "items", "type": "Table/Purchase Receipt Item", "description": "Received item rows."},
+        ],
+        "optional": [
+            {"field": "set_warehouse", "type": "Link/Warehouse", "description": "Default target warehouse for lines."},
+            {"field": "bill_no", "type": "Data", "description": "Supplier bill number reference."},
+        ],
+    },
+    "Material Request": {
+        "description": "Internal request for material movement, procurement, or transfer.",
+        "naming": "MAT-MR-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "material_request_type", "type": "Select", "description": "Purchase, Material Transfer, Material Issue, etc."},
+            {"field": "schedule_date", "type": "Date", "description": "Required-by date."},
+            {"field": "company", "type": "Link/Company", "description": "Requesting company."},
+            {"field": "items", "type": "Table/Material Request Item", "description": "Requested item rows."},
+        ],
+        "optional": [
+            {"field": "set_from_warehouse", "type": "Link/Warehouse", "description": "Default source warehouse."},
+            {"field": "set_warehouse", "type": "Link/Warehouse", "description": "Default target warehouse."},
+        ],
+    },
+    "Stock Entry": {
+        "description": "Inventory movement transaction (transfer, receipt, manufacture, repack, issue).",
+        "naming": "MAT-STE-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "stock_entry_type", "type": "Select", "description": "Purpose of stock movement."},
+            {"field": "company", "type": "Link/Company", "description": "Company context."},
+            {"field": "items", "type": "Table/Stock Entry Detail", "description": "Stock rows with source/target warehouses."},
+        ],
+        "optional": [
+            {"field": "posting_date", "type": "Date", "description": "Posting date."},
+            {"field": "from_warehouse", "type": "Link/Warehouse", "description": "Default source warehouse."},
+            {"field": "to_warehouse", "type": "Link/Warehouse", "description": "Default target warehouse."},
+        ],
+    },
+    "Stock Reconciliation": {
+        "description": "Adjust stock quantities and valuation to match physical inventory.",
+        "naming": "MAT-RECO-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "company", "type": "Link/Company", "description": "Company context."},
+            {"field": "posting_date", "type": "Date", "description": "Date of reconciliation."},
+            {"field": "items", "type": "Table/Stock Reconciliation Item", "description": "Rows defining reconciled qty/rate by warehouse."},
+        ],
+        "optional": [
+            {"field": "set_warehouse", "type": "Link/Warehouse", "description": "Default warehouse for rows."},
+            {"field": "purpose", "type": "Small Text", "description": "Reason for adjustment."},
+        ],
+    },
+    "Employee": {
+        "description": "HR master record for an employee. Tenant-specific HR custom fields are common.",
+        "naming": "HR-EMP-YYYY-NNNNN (auto-generated or series)",
+        "required": [
+            {"field": "first_name", "type": "Data", "description": "Employee first name."},
+            {"field": "company", "type": "Link/Company", "description": "Employing company."},
+            {"field": "date_of_joining", "type": "Date", "description": "Join date."},
+        ],
+        "optional": [
+            {"field": "last_name", "type": "Data", "description": "Employee last name."},
+            {"field": "department", "type": "Link/Department", "description": "Department link."},
+            {"field": "designation", "type": "Link/Designation", "description": "Job title."},
+            {"field": "status", "type": "Select", "description": "Employment status."},
+        ],
+    },
+    "Expense Claim": {
+        "description": "Employee expense reimbursement request.",
+        "naming": "EXP-CLM-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "employee", "type": "Link/Employee", "description": "Claiming employee."},
+            {"field": "company", "type": "Link/Company", "description": "Company that reimburses."},
+            {"field": "expenses", "type": "Table/Expense Claim Detail", "description": "Expense rows with type/date/amount."},
+        ],
+        "optional": [
+            {"field": "posting_date", "type": "Date", "description": "Claim creation accounting date."},
+            {"field": "payable_account", "type": "Link/Account", "description": "Liability account for reimbursement."},
+        ],
+    },
+    "Opportunity": {
+        "description": "CRM opportunity linked to a lead/customer and potential revenue.",
+        "naming": "OPTY-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "opportunity_from", "type": "Select", "description": "Source entity type (Lead or Customer)."},
+            {"field": "party_name", "type": "Dynamic Link", "description": "Lead/Customer value matching opportunity_from."},
+            {"field": "opportunity_type", "type": "Link/Opportunity Type", "description": "Opportunity classification."},
+        ],
+        "optional": [
+            {"field": "expected_closing", "type": "Date", "description": "Expected close date."},
+            {"field": "sales_stage", "type": "Link/Sales Stage", "description": "Current sales stage."},
+            {"field": "items", "type": "Table/Opportunity Item", "description": "Potential item lines and values."},
+        ],
+    },
+    "Quotation": {
+        "description": "Selling quotation for a lead/customer before order confirmation.",
+        "naming": "QTN-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "quotation_to", "type": "Select", "description": "Lead, Customer, or Prospect."},
+            {"field": "party_name", "type": "Dynamic Link", "description": "Party matching quotation_to."},
+            {"field": "company", "type": "Link/Company", "description": "Selling company."},
+            {"field": "items", "type": "Table/Quotation Item", "description": "Quoted line items."},
+        ],
+        "optional": [
+            {"field": "transaction_date", "type": "Date", "description": "Quotation date."},
+            {"field": "valid_till", "type": "Date", "description": "Quotation validity date."},
+            {"field": "order_type", "type": "Select", "description": "Sales or Maintenance."},
+        ],
+    },
+    "BOM": {
+        "description": "Bill of materials for manufacturing finished goods.",
+        "naming": "BOM-ITEM-### (auto-generated)",
+        "required": [
+            {"field": "item", "type": "Link/Item", "description": "Finished good item code."},
+            {"field": "quantity", "type": "Float", "description": "Output quantity for the BOM."},
+            {"field": "items", "type": "Table/BOM Item", "description": "Raw materials/components."},
+        ],
+        "optional": [
+            {"field": "is_active", "type": "Check", "description": "Active BOM flag."},
+            {"field": "is_default", "type": "Check", "description": "Default BOM for item."},
+            {"field": "with_operations", "type": "Check", "description": "Enable operation routing/workstations."},
+        ],
+    },
+    "Work Order": {
+        "description": "Production order generated for a BOM and manufacturing quantity.",
+        "naming": "MFG-WO-YYYY-NNNNN (auto-generated)",
+        "required": [
+            {"field": "production_item", "type": "Link/Item", "description": "Finished good item."},
+            {"field": "bom_no", "type": "Link/BOM", "description": "BOM used for production."},
+            {"field": "qty", "type": "Float", "description": "Production quantity."},
+            {"field": "company", "type": "Link/Company", "description": "Manufacturing company."},
+        ],
+        "optional": [
+            {"field": "fg_warehouse", "type": "Link/Warehouse", "description": "Finished goods warehouse."},
+            {"field": "wip_warehouse", "type": "Link/Warehouse", "description": "Work-in-progress warehouse."},
+            {"field": "planned_start_date", "type": "Date", "description": "Planned production start date."},
+        ],
+    },
     "Lead": {
         "description": "A sales lead or prospect that may convert to a Customer or Opportunity.",
         "naming": "LEAD-YYYY-NNNNN (auto-generated)",

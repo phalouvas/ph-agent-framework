@@ -2,7 +2,7 @@ import json
 
 import pytest
 import httpx
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.core.keys_config import load_keys_config, lookup_key, lookup_tenant
 from app.core.hashing import hash_api_key
@@ -87,6 +87,37 @@ def test_erpnext_create_doc(client, auth_headers):
     assert "Cannot reach ERPNext" in data["error"]
 
 
+def test_erpnext_create_doc_validation_failure_returns_structured_result(client, auth_headers):
+    meta = {
+        "fields": [
+            {"fieldname": "customer", "reqd": 1, "fieldtype": "Link"},
+            {"fieldname": "company", "reqd": 1, "fieldtype": "Link"},
+            {"fieldname": "items", "reqd": 1, "fieldtype": "Table"},
+        ]
+    }
+    with patch("app.plugins.erpnext.tools.ErpNextClient.get_doctype_meta", new=AsyncMock(return_value=meta)), patch(
+        "app.plugins.erpnext.tools.ErpNextClient.create_doc", new=AsyncMock(return_value={"name": "SINV-0001"})
+    ) as create_mock:
+        response = client.post(
+            "/tools/erpnext_create_doc",
+            json={
+                "doctype": "Sales Invoice",
+                "data": {"customer": "CUST-0001"},
+                "validation_mode": "live",
+            },
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is False
+    assert payload["error"] == "Validation failed against live ERPNext metadata"
+    assert payload["validation"]["applied"] is True
+    assert "company" in payload["validation"]["missing_required_fields"]
+    assert "items" in payload["validation"]["missing_required_fields"]
+    create_mock.assert_not_awaited()
+
+
 def test_erpnext_update_doc(client, auth_headers):
     response = client.post(
         "/tools/erpnext_update_doc",
@@ -100,6 +131,55 @@ def test_erpnext_update_doc(client, auth_headers):
     assert response.status_code == 200
     data = response.json()
     assert "Cannot reach ERPNext" in data["error"]
+
+
+def test_erpnext_update_doc_validation_unknown_fields(client, auth_headers):
+    meta = {
+        "fields": [
+            {"fieldname": "delivery_date", "reqd": 0, "fieldtype": "Date"},
+        ]
+    }
+    with patch("app.plugins.erpnext.tools.ErpNextClient.get_doctype_meta", new=AsyncMock(return_value=meta)), patch(
+        "app.plugins.erpnext.tools.ErpNextClient.update_doc", new=AsyncMock(return_value={"name": "SO-1"})
+    ) as update_mock:
+        response = client.post(
+            "/tools/erpnext_update_doc",
+            json={
+                "doctype": "Sales Order",
+                "docname": "SO-1",
+                "data": {"not_a_field": "x"},
+                "validation_mode": "live",
+            },
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is False
+    assert payload["validation"]["unknown_fields"] == ["not_a_field"]
+    update_mock.assert_not_awaited()
+
+
+def test_erpnext_create_doc_validation_off_skips_live_validation(client, auth_headers):
+    with patch("app.plugins.erpnext.tools.ErpNextClient.get_doctype_meta", new=AsyncMock()) as meta_mock, patch(
+        "app.plugins.erpnext.tools.ErpNextClient.create_doc", new=AsyncMock(return_value={"name": "CUST-1"})
+    ) as create_mock:
+        response = client.post(
+            "/tools/erpnext_create_doc",
+            json={
+                "doctype": "Customer",
+                "data": {"customer_name": "Acme", "customer_type": "Company"},
+                "validation_mode": "off",
+            },
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["verification_required"] is True
+    meta_mock.assert_not_awaited()
+    create_mock.assert_awaited_once()
 
 
 def test_erpnext_delete_doc(client, auth_headers):
@@ -124,6 +204,26 @@ def test_erpnext_get_doctype_meta(client, auth_headers):
     data = response.json()
     assert data["meta"] is None
     assert "Cannot reach ERPNext" in data["error"]
+
+
+def test_erpnext_get_doctype_meta_refresh_cache(client, auth_headers):
+    with patch(
+        "app.plugins.erpnext.tools.ErpNextClient.invalidate_meta_cache_for_tenant"
+    ) as invalidate_mock, patch(
+        "app.plugins.erpnext.tools.ErpNextClient.get_doctype_meta",
+        new=AsyncMock(return_value={"name": "Sales Invoice", "fields": []}),
+    ) as meta_mock:
+        response = client.post(
+            "/tools/erpnext_get_doctype_meta",
+            json={"doctype": "Sales Invoice", "refresh_cache": True},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["name"] == "Sales Invoice"
+    invalidate_mock.assert_called_once()
+    meta_mock.assert_awaited_once_with("Sales Invoice", force_refresh=True)
 
 
 def test_erpnext_list_doctypes(client, auth_headers):
@@ -707,6 +807,41 @@ class TestErpNextClient:
         assert ["attached_to_doctype", "=", "Customer"] in filters
         assert ["attached_to_name", "=", "Acme Corp"] in filters
         assert result == [{"file_name": "notes.txt"}]
+
+    @pytest.mark.asyncio
+    async def test_get_doctype_meta_force_refresh_bypasses_cache(self):
+        ErpNextClient.invalidate_meta_cache()
+        client = ErpNextClient("https://erp.example.com", "key", "secret")
+
+        first_response = MagicMock()
+        first_response.raise_for_status.return_value = None
+        first_response.json.return_value = {"data": {"name": "Item", "fields": []}}
+
+        second_response = MagicMock()
+        second_response.raise_for_status.return_value = None
+        second_response.json.return_value = {"data": {"name": "Item", "fields": [{"fieldname": "item_code"}]}}
+
+        with patch.object(httpx.AsyncClient, "request", side_effect=[first_response, second_response]) as mock_req:
+            first = await client.get_doctype_meta("Item")
+            second = await client.get_doctype_meta("Item", force_refresh=True)
+
+        assert first == {"name": "Item", "fields": []}
+        assert second == {"name": "Item", "fields": [{"fieldname": "item_code"}]}
+        assert mock_req.call_count == 2
+
+    def test_parse_error_details_with_server_messages(self):
+        response = MagicMock()
+        response.status_code = 417
+        response.text = "validation failed"
+        response.json.return_value = {
+            "exc_type": "ValidationError",
+            "_server_messages": json.dumps([json.dumps({"message": "Missing customer"})]),
+        }
+
+        details = ErpNextClient._parse_error_details(response)
+        assert details["category"] == "validation"
+        assert "Missing customer" in details["message"]
+        assert details["details"]["server_messages"] == ["Missing customer"]
 
 
 # ── Tenant resolution tests ────────────────────────────────────────
