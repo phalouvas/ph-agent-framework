@@ -22,11 +22,11 @@ def test_reconcile_fieldset_reports_stale_and_unknown_fields():
         doctype="Supplier",
         source_repo="frappe/erpnext",
         source_path="erpnext/buying/doctype/supplier/supplier.json",
-        required_fields=["supplier_name"],
-        fields=["supplier_name", "supplier_group"],
+        required_fields=["supplier_name", "supplier_type"],
+        fields=["supplier_name", "supplier_type", "supplier_group", "email_id", "mobile_no"],
     )
 
     result = reconcile_fieldset("Supplier", snapshot)
 
     assert "tax_id" in result["unknown_optional"]
-    assert result["stale_required"] == []
+    assert result["missing_required"] == []

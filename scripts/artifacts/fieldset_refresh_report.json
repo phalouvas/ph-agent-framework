@@ -1,0 +1,1292 @@
+{
+  "doctypes_requested": [
+    "BOM",
+    "Customer",
+    "Employee",
+    "Expense Claim",
+    "Item",
+    "Journal Entry",
+    "Lead",
+    "Material Request",
+    "Opportunity",
+    "Payment Entry",
+    "Purchase Invoice",
+    "Purchase Order",
+    "Purchase Receipt",
+    "Quotation",
+    "Sales Invoice",
+    "Sales Order",
+    "Stock Entry",
+    "Stock Reconciliation",
+    "Supplier",
+    "Work Order"
+  ],
+  "missing_from_upstream": [
+    "Expense Claim"
+  ],
+  "reconciliation": {
+    "BOM": {
+      "doctype": "BOM",
+      "local_required": [
+        "company",
+        "item",
+        "quantity",
+        "items",
+        "conversion_rate",
+        "currency"
+      ],
+      "missing_required": [],
+      "source_path": "erpnext/manufacturing/doctype/bom/bom.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Manufacturing company context.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Finished good item code.",
+          "field": "item",
+          "type": "Link/Item"
+        },
+        {
+          "description": "Output quantity for the BOM.",
+          "field": "quantity",
+          "type": "Float"
+        },
+        {
+          "description": "Raw materials/components.",
+          "field": "items",
+          "type": "Table/BOM Item"
+        },
+        {
+          "description": "Conversion rate for currency.",
+          "field": "conversion_rate",
+          "type": "Float"
+        },
+        {
+          "description": "BOM currency.",
+          "field": "currency",
+          "type": "Link/Currency"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "company",
+        "conversion_rate",
+        "currency",
+        "item",
+        "items",
+        "quantity"
+      ]
+    },
+    "Customer": {
+      "doctype": "Customer",
+      "local_required": [
+        "customer_name",
+        "customer_type"
+      ],
+      "missing_required": [],
+      "source_path": "erpnext/selling/doctype/customer/customer.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Full display name of the customer.",
+          "field": "customer_name",
+          "type": "Data"
+        },
+        {
+          "description": "'Company' or 'Individual'.",
+          "field": "customer_type",
+          "type": "Select"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "customer_name",
+        "customer_type"
+      ]
+    },
+    "Employee": {
+      "doctype": "Employee",
+      "local_required": [
+        "first_name",
+        "company",
+        "date_of_joining",
+        "date_of_birth",
+        "gender",
+        "status"
+      ],
+      "missing_required": [],
+      "source_path": "erpnext/setup/doctype/employee/employee.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Employee first name.",
+          "field": "first_name",
+          "type": "Data"
+        },
+        {
+          "description": "Employing company.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Join date.",
+          "field": "date_of_joining",
+          "type": "Date"
+        },
+        {
+          "description": "Date of birth.",
+          "field": "date_of_birth",
+          "type": "Date"
+        },
+        {
+          "description": "Gender.",
+          "field": "gender",
+          "type": "Select"
+        },
+        {
+          "description": "Employment status (Active, Left, On Leave).",
+          "field": "status",
+          "type": "Select"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "company",
+        "date_of_birth",
+        "date_of_joining",
+        "first_name",
+        "gender",
+        "status"
+      ]
+    },
+    "Item": {
+      "doctype": "Item",
+      "local_required": [
+        "item_code",
+        "item_name",
+        "item_group",
+        "stock_uom"
+      ],
+      "missing_required": [],
+      "source_path": "erpnext/stock/doctype/item/item.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Unique item identifier/code.",
+          "field": "item_code",
+          "type": "Data"
+        },
+        {
+          "description": "Display name.",
+          "field": "item_name",
+          "type": "Data"
+        },
+        {
+          "description": "Category. Must exist in the system, e.g. 'Raw Material', 'Products', 'Services'.",
+          "field": "item_group",
+          "type": "Link/Item Group"
+        },
+        {
+          "description": "Default unit of measure, e.g. 'Nos', 'Kg', 'Meter', 'Hour'.",
+          "field": "stock_uom",
+          "type": "Link/UOM"
+        }
+      ],
+      "unknown_optional": [
+        "default_warehouse"
+      ],
+      "upstream_required": [
+        "item_code",
+        "item_group",
+        "stock_uom"
+      ]
+    },
+    "Journal Entry": {
+      "doctype": "Journal Entry",
+      "local_required": [
+        "voucher_type",
+        "posting_date",
+        "accounts",
+        "company"
+      ],
+      "missing_required": [
+        "naming_series"
+      ],
+      "source_path": "erpnext/accounts/doctype/journal_entry/journal_entry.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Entry type, e.g. Journal Entry, Bank Entry.",
+          "field": "voucher_type",
+          "type": "Select"
+        },
+        {
+          "description": "Accounting date.",
+          "field": "posting_date",
+          "type": "Date"
+        },
+        {
+          "description": "Debit/credit lines; totals must balance.",
+          "field": "accounts",
+          "type": "Table/Journal Entry Account"
+        },
+        {
+          "description": "Company ledger context.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "accounts",
+        "company",
+        "naming_series",
+        "posting_date",
+        "voucher_type"
+      ]
+    },
+    "Lead": {
+      "doctype": "Lead",
+      "local_required": [
+        "lead_name"
+      ],
+      "missing_required": [
+        "status"
+      ],
+      "source_path": "erpnext/crm/doctype/lead/lead.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Full name or company name of the lead.",
+          "field": "lead_name",
+          "type": "Data"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "status",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [
+        "source"
+      ],
+      "upstream_required": [
+        "status"
+      ]
+    },
+    "Material Request": {
+      "doctype": "Material Request",
+      "local_required": [
+        "material_request_type",
+        "schedule_date",
+        "company",
+        "items"
+      ],
+      "missing_required": [
+        "naming_series",
+        "transaction_date"
+      ],
+      "source_path": "erpnext/stock/doctype/material_request/material_request.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Purchase, Material Transfer, Material Issue, etc.",
+          "field": "material_request_type",
+          "type": "Select"
+        },
+        {
+          "description": "Required-by date.",
+          "field": "schedule_date",
+          "type": "Date"
+        },
+        {
+          "description": "Requesting company.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Requested item rows.",
+          "field": "items",
+          "type": "Table/Material Request Item"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "transaction_date",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "company",
+        "items",
+        "material_request_type",
+        "naming_series",
+        "transaction_date"
+      ]
+    },
+    "Opportunity": {
+      "doctype": "Opportunity",
+      "local_required": [
+        "opportunity_from",
+        "party_name",
+        "opportunity_type"
+      ],
+      "missing_required": [
+        "company",
+        "naming_series",
+        "status",
+        "transaction_date"
+      ],
+      "source_path": "erpnext/crm/doctype/opportunity/opportunity.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Source entity type (Lead or Customer).",
+          "field": "opportunity_from",
+          "type": "Select"
+        },
+        {
+          "description": "Lead/Customer value matching opportunity_from.",
+          "field": "party_name",
+          "type": "Dynamic Link"
+        },
+        {
+          "description": "Opportunity classification.",
+          "field": "opportunity_type",
+          "type": "Link/Opportunity Type"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "company",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "status",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "transaction_date",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "company",
+        "naming_series",
+        "opportunity_from",
+        "party_name",
+        "status",
+        "transaction_date"
+      ]
+    },
+    "Payment Entry": {
+      "doctype": "Payment Entry",
+      "local_required": [
+        "payment_type",
+        "party_type",
+        "party",
+        "paid_amount"
+      ],
+      "missing_required": [
+        "base_paid_amount",
+        "base_received_amount",
+        "company",
+        "naming_series",
+        "paid_from",
+        "paid_from_account_currency",
+        "paid_to",
+        "paid_to_account_currency",
+        "posting_date",
+        "received_amount",
+        "source_exchange_rate",
+        "target_exchange_rate"
+      ],
+      "source_path": "erpnext/accounts/doctype/payment_entry/payment_entry.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Receive or Pay.",
+          "field": "payment_type",
+          "type": "Select"
+        },
+        {
+          "description": "Customer or Supplier.",
+          "field": "party_type",
+          "type": "Select"
+        },
+        {
+          "description": "Party value matching party_type.",
+          "field": "party",
+          "type": "Dynamic Link"
+        },
+        {
+          "description": "Amount paid or received.",
+          "field": "paid_amount",
+          "type": "Currency"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "base_paid_amount",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "base_received_amount",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "company",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "paid_from",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "paid_from_account_currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "paid_to",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "paid_to_account_currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "posting_date",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "received_amount",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "source_exchange_rate",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "target_exchange_rate",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "base_paid_amount",
+        "base_received_amount",
+        "company",
+        "naming_series",
+        "paid_amount",
+        "paid_from",
+        "paid_from_account_currency",
+        "paid_to",
+        "paid_to_account_currency",
+        "payment_type",
+        "posting_date",
+        "received_amount",
+        "source_exchange_rate",
+        "target_exchange_rate"
+      ]
+    },
+    "Purchase Invoice": {
+      "doctype": "Purchase Invoice",
+      "local_required": [
+        "supplier",
+        "company",
+        "items"
+      ],
+      "missing_required": [
+        "credit_to",
+        "naming_series",
+        "posting_date"
+      ],
+      "source_path": "erpnext/accounts/doctype/purchase_invoice/purchase_invoice.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Supplier being billed.",
+          "field": "supplier",
+          "type": "Link/Supplier"
+        },
+        {
+          "description": "Your company.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Line items for the invoice.",
+          "field": "items",
+          "type": "Table/Purchase Invoice Item"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "credit_to",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "posting_date",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "credit_to",
+        "items",
+        "naming_series",
+        "posting_date",
+        "supplier"
+      ]
+    },
+    "Purchase Order": {
+      "doctype": "Purchase Order",
+      "local_required": [
+        "supplier",
+        "company",
+        "schedule_date",
+        "items"
+      ],
+      "missing_required": [
+        "conversion_rate",
+        "currency",
+        "naming_series",
+        "status",
+        "transaction_date"
+      ],
+      "source_path": "erpnext/buying/doctype/purchase_order/purchase_order.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "The supplier to order from.",
+          "field": "supplier",
+          "type": "Link/Supplier"
+        },
+        {
+          "description": "Your company.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Expected receipt date.",
+          "field": "schedule_date",
+          "type": "Date"
+        },
+        {
+          "description": "Line items.",
+          "field": "items",
+          "type": "Table/Purchase Order Item"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "conversion_rate",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "status",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "transaction_date",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "company",
+        "conversion_rate",
+        "currency",
+        "items",
+        "naming_series",
+        "status",
+        "supplier",
+        "transaction_date"
+      ]
+    },
+    "Purchase Receipt": {
+      "doctype": "Purchase Receipt",
+      "local_required": [
+        "supplier",
+        "company",
+        "posting_date",
+        "items"
+      ],
+      "missing_required": [
+        "base_net_total",
+        "conversion_rate",
+        "currency",
+        "naming_series",
+        "posting_time",
+        "status"
+      ],
+      "source_path": "erpnext/stock/doctype/purchase_receipt/purchase_receipt.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Supplier delivering goods.",
+          "field": "supplier",
+          "type": "Link/Supplier"
+        },
+        {
+          "description": "Receiving company.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Receipt date.",
+          "field": "posting_date",
+          "type": "Date"
+        },
+        {
+          "description": "Received item rows.",
+          "field": "items",
+          "type": "Table/Purchase Receipt Item"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "base_net_total",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "conversion_rate",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "posting_time",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "status",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [
+        "bill_no"
+      ],
+      "upstream_required": [
+        "base_net_total",
+        "company",
+        "conversion_rate",
+        "currency",
+        "items",
+        "naming_series",
+        "posting_date",
+        "posting_time",
+        "status",
+        "supplier"
+      ]
+    },
+    "Quotation": {
+      "doctype": "Quotation",
+      "local_required": [
+        "quotation_to",
+        "party_name",
+        "company",
+        "items"
+      ],
+      "missing_required": [
+        "conversion_rate",
+        "currency",
+        "naming_series",
+        "order_type",
+        "plc_conversion_rate",
+        "price_list_currency",
+        "selling_price_list",
+        "status",
+        "transaction_date"
+      ],
+      "source_path": "erpnext/selling/doctype/quotation/quotation.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Lead, Customer, or Prospect.",
+          "field": "quotation_to",
+          "type": "Select"
+        },
+        {
+          "description": "Party matching quotation_to.",
+          "field": "party_name",
+          "type": "Dynamic Link"
+        },
+        {
+          "description": "Selling company.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Quoted line items.",
+          "field": "items",
+          "type": "Table/Quotation Item"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "conversion_rate",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "order_type",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "plc_conversion_rate",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "price_list_currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "selling_price_list",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "status",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "transaction_date",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "company",
+        "conversion_rate",
+        "currency",
+        "items",
+        "naming_series",
+        "order_type",
+        "plc_conversion_rate",
+        "price_list_currency",
+        "quotation_to",
+        "selling_price_list",
+        "status",
+        "transaction_date"
+      ]
+    },
+    "Sales Invoice": {
+      "doctype": "Sales Invoice",
+      "local_required": [
+        "customer",
+        "company",
+        "items"
+      ],
+      "missing_required": [
+        "base_grand_total",
+        "base_net_total",
+        "conversion_rate",
+        "currency",
+        "debit_to",
+        "grand_total",
+        "naming_series",
+        "plc_conversion_rate",
+        "posting_date",
+        "price_list_currency",
+        "selling_price_list"
+      ],
+      "source_path": "erpnext/accounts/doctype/sales_invoice/sales_invoice.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "The customer being billed.",
+          "field": "customer",
+          "type": "Link/Customer"
+        },
+        {
+          "description": "Your company.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Line items \u2014 see child_tables below",
+          "field": "items",
+          "type": "Table/Sales Invoice Item"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "base_grand_total",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "base_net_total",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "conversion_rate",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "debit_to",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "grand_total",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "plc_conversion_rate",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "posting_date",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "price_list_currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "selling_price_list",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "base_grand_total",
+        "base_net_total",
+        "company",
+        "conversion_rate",
+        "currency",
+        "customer",
+        "debit_to",
+        "grand_total",
+        "items",
+        "naming_series",
+        "plc_conversion_rate",
+        "posting_date",
+        "price_list_currency",
+        "selling_price_list"
+      ]
+    },
+    "Sales Order": {
+      "doctype": "Sales Order",
+      "local_required": [
+        "customer",
+        "company",
+        "delivery_date",
+        "items"
+      ],
+      "missing_required": [
+        "conversion_rate",
+        "currency",
+        "naming_series",
+        "order_type",
+        "plc_conversion_rate",
+        "price_list_currency",
+        "selling_price_list",
+        "status",
+        "transaction_date"
+      ],
+      "source_path": "erpnext/selling/doctype/sales_order/sales_order.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "The customer placing the order. Must exist in the system.",
+          "field": "customer",
+          "type": "Link/Customer"
+        },
+        {
+          "description": "Your company making the sale. Usually auto-set from defaults.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Expected delivery date, e.g. '2025-04-01'",
+          "field": "delivery_date",
+          "type": "Date"
+        },
+        {
+          "description": "Line items \u2014 see child_tables below",
+          "field": "items",
+          "type": "Table/Sales Order Item"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "conversion_rate",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "order_type",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "plc_conversion_rate",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "price_list_currency",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "selling_price_list",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "status",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "transaction_date",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "company",
+        "conversion_rate",
+        "currency",
+        "customer",
+        "items",
+        "naming_series",
+        "order_type",
+        "plc_conversion_rate",
+        "price_list_currency",
+        "selling_price_list",
+        "status",
+        "transaction_date"
+      ]
+    },
+    "Stock Entry": {
+      "doctype": "Stock Entry",
+      "local_required": [
+        "stock_entry_type",
+        "company",
+        "items"
+      ],
+      "missing_required": [
+        "naming_series"
+      ],
+      "source_path": "erpnext/stock/doctype/stock_entry/stock_entry.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Purpose of stock movement.",
+          "field": "stock_entry_type",
+          "type": "Select"
+        },
+        {
+          "description": "Company context.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Stock rows with source/target warehouses.",
+          "field": "items",
+          "type": "Table/Stock Entry Detail"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "company",
+        "items",
+        "naming_series",
+        "stock_entry_type"
+      ]
+    },
+    "Stock Reconciliation": {
+      "doctype": "Stock Reconciliation",
+      "local_required": [
+        "company",
+        "posting_date",
+        "items"
+      ],
+      "missing_required": [
+        "naming_series",
+        "posting_time",
+        "purpose"
+      ],
+      "source_path": "erpnext/stock/doctype/stock_reconciliation/stock_reconciliation.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Company context.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Date of reconciliation.",
+          "field": "posting_date",
+          "type": "Date"
+        },
+        {
+          "description": "Rows defining reconciled qty/rate by warehouse.",
+          "field": "items",
+          "type": "Table/Stock Reconciliation Item"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "posting_time",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "purpose",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "company",
+        "items",
+        "naming_series",
+        "posting_date",
+        "posting_time",
+        "purpose"
+      ]
+    },
+    "Supplier": {
+      "doctype": "Supplier",
+      "local_required": [
+        "supplier_name",
+        "supplier_type"
+      ],
+      "missing_required": [],
+      "source_path": "erpnext/buying/doctype/supplier/supplier.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Display name of the supplier.",
+          "field": "supplier_name",
+          "type": "Data"
+        },
+        {
+          "description": "Supplier classification, e.g. 'Company', 'Individual'.",
+          "field": "supplier_type",
+          "type": "Select"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "supplier_name",
+        "supplier_type"
+      ]
+    },
+    "Work Order": {
+      "doctype": "Work Order",
+      "local_required": [
+        "production_item",
+        "bom_no",
+        "qty",
+        "company"
+      ],
+      "missing_required": [
+        "naming_series",
+        "planned_start_date",
+        "status"
+      ],
+      "source_path": "erpnext/manufacturing/doctype/work_order/work_order.json",
+      "source_repo": "frappe/erpnext",
+      "stale_required": [],
+      "suggested_required": [
+        {
+          "description": "Finished good item.",
+          "field": "production_item",
+          "type": "Link/Item"
+        },
+        {
+          "description": "BOM used for production.",
+          "field": "bom_no",
+          "type": "Link/BOM"
+        },
+        {
+          "description": "Production quantity.",
+          "field": "qty",
+          "type": "Float"
+        },
+        {
+          "description": "Manufacturing company.",
+          "field": "company",
+          "type": "Link/Company"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "naming_series",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "planned_start_date",
+          "type": "Unknown"
+        },
+        {
+          "description": "Added from upstream snapshot. Confirm field type and business meaning in tenant metadata.",
+          "field": "status",
+          "type": "Unknown"
+        }
+      ],
+      "unknown_optional": [],
+      "upstream_required": [
+        "bom_no",
+        "company",
+        "naming_series",
+        "planned_start_date",
+        "production_item",
+        "qty",
+        "status"
+      ]
+    }
+  },
+  "snapshots_found": [
+    "BOM",
+    "Customer",
+    "Employee",
+    "Item",
+    "Journal Entry",
+    "Lead",
+    "Material Request",
+    "Opportunity",
+    "Payment Entry",
+    "Purchase Invoice",
+    "Purchase Order",
+    "Purchase Receipt",
+    "Quotation",
+    "Sales Invoice",
+    "Sales Order",
+    "Stock Entry",
+    "Stock Reconciliation",
+    "Supplier",
+    "Work Order"
+  ]
+}

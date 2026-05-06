@@ -138,9 +138,10 @@ FIELDSETS: dict[str, dict] = {
         "naming": "Supplier name (text, user-provided)",
         "required": [
             {"field": "supplier_name", "type": "Data", "description": "Display name of the supplier."},
-            {"field": "supplier_group", "type": "Link/Supplier Group", "description": "Category, e.g. 'Local', 'Services', 'Raw Material'."},
+            {"field": "supplier_type", "type": "Select", "description": "Supplier classification, e.g. 'Company', 'Individual'."},
         ],
         "optional": [
+            {"field": "supplier_group", "type": "Link/Supplier Group", "description": "Category, e.g. 'Local', 'Services', 'Raw Material'."},
             {"field": "email_id", "type": "Data", "description": "Primary email."},
             {"field": "mobile_no", "type": "Data", "description": "Primary phone."},
             {"field": "tax_id", "type": "Data", "description": "Tax ID."},
@@ -263,12 +264,14 @@ FIELDSETS: dict[str, dict] = {
             {"field": "first_name", "type": "Data", "description": "Employee first name."},
             {"field": "company", "type": "Link/Company", "description": "Employing company."},
             {"field": "date_of_joining", "type": "Date", "description": "Join date."},
+            {"field": "date_of_birth", "type": "Date", "description": "Date of birth."},
+            {"field": "gender", "type": "Select", "description": "Gender."},
+            {"field": "status", "type": "Select", "description": "Employment status (Active, Left, On Leave)."},
         ],
         "optional": [
             {"field": "last_name", "type": "Data", "description": "Employee last name."},
             {"field": "department", "type": "Link/Department", "description": "Department link."},
             {"field": "designation", "type": "Link/Designation", "description": "Job title."},
-            {"field": "status", "type": "Select", "description": "Employment status."},
         ],
     },
     "Expense Claim": {
@@ -317,9 +320,12 @@ FIELDSETS: dict[str, dict] = {
         "description": "Bill of materials for manufacturing finished goods.",
         "naming": "BOM-ITEM-### (auto-generated)",
         "required": [
+            {"field": "company", "type": "Link/Company", "description": "Manufacturing company context."},
             {"field": "item", "type": "Link/Item", "description": "Finished good item code."},
             {"field": "quantity", "type": "Float", "description": "Output quantity for the BOM."},
             {"field": "items", "type": "Table/BOM Item", "description": "Raw materials/components."},
+            {"field": "conversion_rate", "type": "Float", "description": "Conversion rate for currency."},
+            {"field": "currency", "type": "Link/Currency", "description": "BOM currency."},
         ],
         "optional": [
             {"field": "is_active", "type": "Check", "description": "Active BOM flag."},
