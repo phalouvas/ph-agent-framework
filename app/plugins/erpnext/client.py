@@ -64,25 +64,69 @@ class ErpNextClient:
     @classmethod
     def invalidate_meta_cache(cls, doctype: str | None = None) -> None:
         if doctype:
-            cls._meta_cache.pop(doctype, None)
+            stale = [k for k in cls._meta_cache if k.endswith(f"::{doctype}")]
+            for key in stale:
+                cls._meta_cache.pop(key, None)
         else:
             cls._meta_cache.clear()
+
+    @classmethod
+    def invalidate_meta_cache_for_tenant(cls, base_url: str, doctype: str | None = None) -> None:
+        prefix = base_url.rstrip("/") + "::"
+        if doctype:
+            cls._meta_cache.pop(f"{prefix}{doctype}", None)
+            return
+        stale = [k for k in cls._meta_cache if k.startswith(prefix)]
+        for key in stale:
+            cls._meta_cache.pop(key, None)
 
     # ── Error parsing ────────────────────────────────────────────────
 
     @staticmethod
-    def _parse_error_response(response: httpx.Response | None) -> str:
-        """Extract a clean, actionable error message from an ERPNext error response."""
+    def _extract_server_messages(raw_messages: str) -> list[str]:
+        try:
+            messages = json.loads(raw_messages)
+        except (ValueError, json.JSONDecodeError):
+            return []
+
+        cleaned: list[str] = []
+        for item in messages:
+            if isinstance(item, str):
+                try:
+                    parsed = json.loads(item)
+                    cleaned.append(str(parsed.get("message") or parsed))
+                except (ValueError, json.JSONDecodeError):
+                    cleaned.append(item)
+            elif isinstance(item, dict):
+                cleaned.append(str(item.get("message") or item))
+        return cleaned
+
+    @classmethod
+    def _parse_error_details(cls, response: httpx.Response | None) -> dict[str, Any]:
+        """Extract normalized error details from ERPNext responses."""
         if response is None:
-            return "Unknown ERPNext error"
+            return {
+                "status_code": None,
+                "category": "unknown",
+                "exc_type": None,
+                "message": "Unknown ERPNext error",
+                "details": {},
+            }
 
         try:
             body = response.json()
         except (ValueError, json.JSONDecodeError):
-            return f"ERPNext returned {response.status_code}: {response.text[:200]}"
+            return {
+                "status_code": response.status_code,
+                "category": "http",
+                "exc_type": None,
+                "message": f"ERPNext returned {response.status_code}: {response.text[:300]}",
+                "details": {},
+            }
 
         exc_type = body.get("exc_type", "")
         exception_text = body.get("exception", "")
+        category = "validation" if "validation" in str(exc_type).lower() else "server"
 
         if exc_type and exception_text:
             lines = exception_text.split("\n")
@@ -91,21 +135,48 @@ class ErpNextClient:
                 if l.strip() and not l.startswith("Traceback") and not l.startswith("  File")
             ]
             message = clean_lines[-1] if clean_lines else exception_text
-            return f"ERPNext {exc_type}: {message[:300]}"
+            details: dict[str, Any] = {}
+            if "_server_messages" in body:
+                details["server_messages"] = cls._extract_server_messages(str(body["_server_messages"]))
+            return {
+                "status_code": response.status_code,
+                "category": category,
+                "exc_type": exc_type,
+                "message": f"ERPNext {exc_type}: {message[:300]}",
+                "details": details,
+            }
 
         if "message" in body:
-            return f"ERPNext error: {str(body['message'])[:300]}"
+            return {
+                "status_code": response.status_code,
+                "category": category,
+                "exc_type": exc_type or None,
+                "message": f"ERPNext error: {str(body['message'])[:300]}",
+                "details": {},
+            }
 
-        # ValidationError often has field-level messages
         if "_server_messages" in body:
-            try:
-                msgs = json.loads(body["_server_messages"])
-                cleaned = [json.loads(m).get("message", m) for m in msgs]
-                return "ERPNext validation: " + "; ".join(cleaned)[:300]
-            except (json.JSONDecodeError, KeyError):
-                pass
+            cleaned = cls._extract_server_messages(str(body["_server_messages"]))
+            return {
+                "status_code": response.status_code,
+                "category": "validation",
+                "exc_type": exc_type or None,
+                "message": "ERPNext validation: " + "; ".join(cleaned)[:300],
+                "details": {"server_messages": cleaned},
+            }
 
-        return f"ERPNext returned {response.status_code}: {response.text[:300]}"
+        return {
+            "status_code": response.status_code,
+            "category": category,
+            "exc_type": exc_type or None,
+            "message": f"ERPNext returned {response.status_code}: {response.text[:300]}",
+            "details": {},
+        }
+
+    @classmethod
+    def _parse_error_response(cls, response: httpx.Response | None) -> str:
+        details = cls._parse_error_details(response)
+        return str(details["message"])
 
     # ── HTTP properties ──────────────────────────────────────────────
 
@@ -225,6 +296,8 @@ class ErpNextClient:
         args: dict[str, Any] = {"doctype": doctype}
         if all_filters:
             args["filters"] = json.dumps(all_filters)
+        if or_filters:
+            args["or_filters"] = json.dumps(or_filters)
 
         count_result = await self.run_method(
             "frappe.desk.reportview.get_count", args=args
@@ -269,15 +342,16 @@ class ErpNextClient:
 
     # ── Doctype metadata ─────────────────────────────────────────────
 
-    async def get_doctype_meta(self, doctype: str) -> dict[str, Any]:
+    async def get_doctype_meta(self, doctype: str, force_refresh: bool = False) -> dict[str, Any]:
+        cache_key = f"{self.url}::{doctype}"
         now = time.time()
-        cached = self._meta_cache.get(doctype)
-        if cached and (now - cached[0]) < self._meta_cache_ttl:
+        cached = self._meta_cache.get(cache_key)
+        if (not force_refresh) and cached and (now - cached[0]) < self._meta_cache_ttl:
             return cached[1]
 
         data = await self._request("GET", f"/api/resource/DocType/{doctype}")
         result = data.get("data", data)
-        self._meta_cache[doctype] = (now, result)
+        self._meta_cache[cache_key] = (now, result)
         return result
 
     async def list_doctypes(

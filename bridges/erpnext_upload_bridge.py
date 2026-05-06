@@ -2,7 +2,7 @@
 title: ERPNext File Upload Bridge
 author: PH Agent Framework
 description: Bridges Open WebUI file uploads to the ph-agent-framework ERPNext tool server. Receives __files__ from chat attachments, reads the content, and forwards it to the erpnext_upload_file endpoint.
-version: 1.0.0
+version: 1.1.0
 licence: MIT
 required_open_webui_version: 0.6.0
 """

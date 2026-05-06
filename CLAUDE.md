@@ -87,3 +87,29 @@ pytest with `asyncio_mode = "auto"` (configured in pyproject.toml). Tests use an
 - `auth_headers` — `{"X-API-Key": "sk-test-secret"}`
 
 When adding tests for a new plugin, update the `plugins_config` dict in `conftest.py`'s `test_app` fixture to enable it.
+
+## ERPNext schema maintenance
+
+Write-path rule of truth:
+
+- Curated fieldsets in `app/plugins/erpnext/fieldsets.py` are advisory.
+- Live doctype metadata from ERPNext is authoritative for create/update validation.
+
+Manual refresh workflow:
+
+```bash
+erpnext-refresh-fieldsets
+# or python scripts/refresh_erpnext_fieldsets.py
+```
+
+Expected artifacts:
+
+- `scripts/artifacts/upstream_doctype_snapshots.json`
+- `scripts/artifacts/fieldset_refresh_report.json`
+
+Safe rollout sequence for schema updates:
+
+1. Run refresh workflow and review report deltas.
+2. Update curated fieldsets in focused module batches (Accounts/Buying, then Stock, then HR/CRM, then Manufacturing).
+3. Add or update tests for validation and write error semantics.
+4. Verify with `pytest` before merge.

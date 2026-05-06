@@ -4,7 +4,7 @@ from app.schemas.common import HealthResponse
 
 router = APIRouter()
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 
 @router.get("/health", response_model=HealthResponse, summary="Health check")

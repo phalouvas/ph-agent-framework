@@ -32,7 +32,7 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_get_doctype_meta",
-        description="Get the complete field schema for a specific ERPNext doctype. Returns all fields with their types, labels, selectable options, mandatory flags (reqd=1), and link targets. ALWAYS call this before creating, updating, or filtering on an unfamiliar doctype — without it you won't know which fields are required, what values they accept, or what you can filter on. Results are cached for 5 minutes so repeated calls for the same doctype are fast.",
+        description="Get the complete field schema for a specific ERPNext doctype. Returns all fields with their types, labels, selectable options, mandatory flags (reqd=1), and link targets. This is the authoritative source for write safety. Use refresh_cache=true when maintainers suspect upstream schema drift. Results are cached for 5 minutes so repeated calls for the same doctype are fast.",
         handler=tools.get_doctype_meta_handler,
         request_model=tools.GetDoctypeMetaRequest,
         response_model=tools.GetDoctypeMetaResponse,
@@ -40,7 +40,18 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_get_fieldset",
-        description="Get a pre-built, curated field template for common ERPNext doctypes (Sales Order, Sales Invoice, Purchase Order, Customer, Item, Supplier, Lead). Unlike erpnext_get_doctype_meta which returns the raw field list, this returns an organized template with 'required', 'optional', and 'child_tables' sections, plus example values and lifecycle information. Use this FIRST for common doctypes — it's faster and more reliable than parsing raw metadata. Falls back to recommending erpnext_get_doctype_meta for unsupported doctypes.",
+        description=(
+            "Get a pre-built, curated field template for common ERPNext doctypes (Sales Order, Sales Invoice, "
+            "Purchase Order, Purchase Invoice, Customer, Item, Supplier, Lead, and others). "
+            "The response includes an 'auto_fill_hints' list of fields that ERPNext auto-populates or has safe defaults — "
+            "check this list BEFORE building a creation payload and OMIT every listed field from the request body. "
+            "Do not ask the user for auto-fill fields; attempt creation with the minimum required payload first. "
+            "Only supply an auto-fill field if ERPNext explicitly returns a MandatoryError naming that specific field; "
+            "in that case use the 'safe_default' from the hint (if provided) and retry before escalating to the user. "
+            "This is advisory guidance for faster prompting and payload shaping. "
+            "Live doctype metadata remains authoritative for write validation. "
+            "Use this first for common doctypes, then rely on erpnext_get_doctype_meta when strict schema certainty is needed."
+        ),
         handler=tools.get_fieldset_handler,
         request_model=tools.GetFieldsetRequest,
         response_model=tools.GetFieldsetResponse,
@@ -75,7 +86,18 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_create_doc",
-        description="Create a new document in ERPNext. BEFORE calling this on an unfamiliar doctype, call erpnext_get_fieldset (for common doctypes) or erpnext_get_doctype_meta to learn which fields are required (reqd=1), what types they expect, and what values are valid. For doctypes with child tables (e.g., Sales Order 'items'), include the child rows as an array of dicts in the data field. Set 'docstatus' to 0 for Draft. After creating, the document is in Draft state — you may need to erpnext_submit_doc so the transaction takes effect.",
+        description=(
+            "Create a new document in ERPNext. "
+            "Minimum-questions rule: the only fields that require a user question before attempting creation are "
+            "those with no safe default and not discoverable via ERPNext tools (e.g., the specific customer name "
+            "or supplier name). All other fields — especially any listed in auto_fill_hints from erpnext_get_fieldset — "
+            "must be omitted from the first attempt; let ERPNext auto-populate them. "
+            "Write requests run live-schema preflight validation by default for common transactional doctypes. "
+            "Set validation_mode='live' to force strict metadata validation for any doctype, or 'off' only when "
+            "a caller intentionally accepts validation risk. "
+            "After any create, you MUST verify persisted state with erpnext_get_doc or erpnext_search_docs before "
+            "claiming business success."
+        ),
         handler=tools.create_doc_handler,
         request_model=tools.CreateDocRequest,
         response_model=tools.CreateDocResponse,
@@ -83,7 +105,7 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_update_doc",
-        description="Update fields on an existing ERPNext document. Only include the fields you want to change — the rest remain unchanged. Can only update documents in Draft status (docstatus=0). To modify a Submitted document, cancel it first with erpnext_cancel_doc, then amend with erpnext_amend_doc. If you're unsure about valid field names, call erpnext_get_doctype_meta first.",
+        description="Update fields on an existing ERPNext document. Write requests run live-schema preflight validation by default for common transactional doctypes. Set validation_mode='live' to force strict metadata validation for any doctype, or 'off' only when a caller intentionally accepts validation risk. After any update, verify the persisted result with erpnext_get_doc or erpnext_search_docs before declaring success.",
         handler=tools.update_doc_handler,
         request_model=tools.UpdateDocRequest,
         response_model=tools.UpdateDocResponse,

@@ -26,6 +26,12 @@ You usually do not call the tool manually. Your job is to provide a clear intent
 - For reports, include report name and date/company filters.
 - For updates, state exactly which fields should change.
 
+## Write safety rule
+
+- Treat `erpnext_get_fieldset` as guidance for common patterns.
+- Treat `erpnext_get_doctype_meta` as authoritative when writing data.
+- After `erpnext_create_doc` or `erpnext_update_doc`, always ask for a verification read (`erpnext_get_doc` or `erpnext_search_docs`) before declaring success.
+
 ## Available tools
 
 ### System
@@ -158,6 +164,56 @@ You usually do not call the tool manually. Your job is to provide a clear intent
 2. Amend to new draft (`erpnext_amend_doc`).
 3. Update fields (`erpnext_update_doc`).
 4. Submit again (`erpnext_submit_doc`).
+
+## Attempt-first defaults
+
+### What is `auto_fill_hints`?
+
+When you call `erpnext_get_fieldset`, the response includes an `auto_fill_hints` list.
+Each entry identifies a field that ERPNext auto-populates on save or has a reliable safe
+default (for example `company`, `credit_to`, `debit_to`, `item_group`, `stock_uom`,
+`supplier_type`).
+
+```json
+"auto_fill_hints": [
+  {"field": "company", "reason": "Auto-set from system defaults when only one company exists. Omit from payload."},
+  {"field": "credit_to", "reason": "Auto-set by ERPNext from the supplier payable account. Omit from payload."},
+  {"field": "item_group", "reason": "Has a system-wide default.", "safe_default": "All Item Groups"}
+]
+```
+
+### Minimum-questions principle
+
+The assistant should ask the user for a value **only** when:
+1. The field has no safe default, and
+2. It cannot be discovered via ERPNext tools (e.g., supplier name or customer name
+   that must come from the user).
+
+All other fields — especially any listed in `auto_fill_hints` — must be **omitted** from
+the first creation attempt. ERPNext will auto-populate them. Never pre-empt by asking the
+user for auto-fill fields before attempting the create.
+
+If ERPNext returns a `MandatoryError` that explicitly names a field from `auto_fill_hints`,
+the assistant should use `safe_default` (if provided) and **retry automatically** before
+escalating to the user.
+
+### Recommended system prompt template for invoice-style flows
+
+Add the following to your Open WebUI system prompt to enforce attempt-first behavior and
+prevent unnecessary back-and-forth:
+
+```
+When creating ERPNext documents:
+1. Call erpnext_get_fieldset first and read auto_fill_hints.
+2. Build the minimum payload: required fields from the user plus any
+   fields you already know. Omit every field listed in auto_fill_hints.
+3. Attempt creation immediately — do not ask the user for auto-fill fields.
+4. If ERPNext returns a MandatoryError for a specific field:
+   a. If the field is in auto_fill_hints and has a safe_default, supply
+      that value and retry once.
+   b. Otherwise, ask the user for that one field only.
+5. After a successful create, verify with erpnext_get_doc before claiming success.
+```
 
 ## Troubleshooting
 
