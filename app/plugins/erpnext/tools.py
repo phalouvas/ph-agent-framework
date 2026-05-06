@@ -796,6 +796,16 @@ class GetFieldsetResponse(BaseModel):
     fieldset: dict[str, Any] | None = Field(
         None, description="Organized field template with 'required', 'optional', and 'child_tables' sections. Each section lists field names, types, descriptions, and example values."
     )
+    auto_fill_hints: list[dict[str, Any]] | None = Field(
+        None,
+        description=(
+            "Structured list of fields that ERPNext auto-populates on save or that have safe defaults. "
+            "Each entry has 'field' (field name), 'reason' (why it is auto-filled), and optionally "
+            "'safe_default' (value to use as fallback if ERPNext rejects with MandatoryError). "
+            "Omit all listed fields from creation payloads; attempt creation first, and only supply "
+            "a field if ERPNext explicitly returns a MandatoryError for it."
+        ),
+    )
     is_known: bool = Field(False, description="Whether this doctype has a curated fieldset. If false, use erpnext_get_doctype_meta instead.")
     error: str | None = Field(None, description="Error message if the lookup failed")
 
@@ -819,7 +829,8 @@ async def get_fieldset_handler(request: GetFieldsetRequest, context: ToolContext
                 is_known=False,
                 error=f"No curated fieldset for '{request.doctype}'. Use erpnext_get_doctype_meta to discover the schema.",
             )
-        return GetFieldsetResponse(doctype=request.doctype, fieldset=fieldset, is_known=True)
+        auto_fill_hints = fieldset.get("auto_fill_hints") or None
+        return GetFieldsetResponse(doctype=request.doctype, fieldset=fieldset, auto_fill_hints=auto_fill_hints, is_known=True)
     except Exception as e:
         return GetFieldsetResponse(doctype=request.doctype, error=str(e))
 

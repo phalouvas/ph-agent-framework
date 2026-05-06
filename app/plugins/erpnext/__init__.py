@@ -40,7 +40,18 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_get_fieldset",
-        description="Get a pre-built, curated field template for common ERPNext doctypes (Sales Order, Sales Invoice, Purchase Order, Purchase Invoice, Customer, Item, Supplier, Lead, and others). This is advisory guidance for faster prompting and payload shaping. Live doctype metadata remains authoritative for write validation. Use this first for common doctypes, then rely on erpnext_get_doctype_meta when strict schema certainty is needed.",
+        description=(
+            "Get a pre-built, curated field template for common ERPNext doctypes (Sales Order, Sales Invoice, "
+            "Purchase Order, Purchase Invoice, Customer, Item, Supplier, Lead, and others). "
+            "The response includes an 'auto_fill_hints' list of fields that ERPNext auto-populates or has safe defaults — "
+            "check this list BEFORE building a creation payload and OMIT every listed field from the request body. "
+            "Do not ask the user for auto-fill fields; attempt creation with the minimum required payload first. "
+            "Only supply an auto-fill field if ERPNext explicitly returns a MandatoryError naming that specific field; "
+            "in that case use the 'safe_default' from the hint (if provided) and retry before escalating to the user. "
+            "This is advisory guidance for faster prompting and payload shaping. "
+            "Live doctype metadata remains authoritative for write validation. "
+            "Use this first for common doctypes, then rely on erpnext_get_doctype_meta when strict schema certainty is needed."
+        ),
         handler=tools.get_fieldset_handler,
         request_model=tools.GetFieldsetRequest,
         response_model=tools.GetFieldsetResponse,
@@ -75,7 +86,18 @@ def register(registry: ToolRegistry) -> None:
     )
     registry.register(
         name="erpnext_create_doc",
-        description="Create a new document in ERPNext. Write requests run live-schema preflight validation by default for common transactional doctypes. Set validation_mode='live' to force strict metadata validation for any doctype, or 'off' only when a caller intentionally accepts validation risk. After any create, you MUST verify persisted state with erpnext_get_doc or erpnext_search_docs before claiming business success.",
+        description=(
+            "Create a new document in ERPNext. "
+            "Minimum-questions rule: the only fields that require a user question before attempting creation are "
+            "those with no safe default and not discoverable via ERPNext tools (e.g., the specific customer name "
+            "or supplier name). All other fields — especially any listed in auto_fill_hints from erpnext_get_fieldset — "
+            "must be omitted from the first attempt; let ERPNext auto-populate them. "
+            "Write requests run live-schema preflight validation by default for common transactional doctypes. "
+            "Set validation_mode='live' to force strict metadata validation for any doctype, or 'off' only when "
+            "a caller intentionally accepts validation risk. "
+            "After any create, you MUST verify persisted state with erpnext_get_doc or erpnext_search_docs before "
+            "claiming business success."
+        ),
         handler=tools.create_doc_handler,
         request_model=tools.CreateDocRequest,
         response_model=tools.CreateDocResponse,
