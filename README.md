@@ -88,6 +88,12 @@ INITIAL_API_KEYS="sk-dev:dev" uvicorn app.main:app --reload --port 8000
 
 Each tool's `operationId` becomes the function name the LLM sees. The `description` and parameter `Field(description=…)` values are what the LLM reads to decide when and how to call the tool.
 
+## Open WebUI user guide for tools
+
+For a user-focused guide to available tools and practical prompting examples, see:
+
+- [documentation/openwebui-tools-guide.md](documentation/openwebui-tools-guide.md)
+
 ## File uploads to ERPNext
 
 When a user attaches a file in chat and asks to upload it to ERPNext, Open WebUI's external tool servers don't receive file data automatically. To bridge this gap, a lightweight importable tool is included.
